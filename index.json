@@ -18,8 +18,8 @@
   {
     "name": "JComic",
     "key": "jcomic",
-    "version": "1.0.1",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/jcomic.js",
+    "version": "1.0.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jcomic-v1.0.2/jcomic.js",
     "fileName": "jcomic.js",
     "description": "JComic (jcomic)"
   },

@@ -3,6 +3,36 @@
 const JCOMIC_BASE = "https://jcomic.net";
 const JCOMIC_REFERER = JCOMIC_BASE + "/";
 
+const defaultHeaders = {
+  "Referer": JCOMIC_REFERER,
+  "Cookie": "jcomic_access=verified_user",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+};
+
+function isCloudflareChallenge(status, body) {
+  if (status === 403 || status === 503) {
+    if (
+      body &&
+      (body.indexOf("challenge-platform") !== -1 ||
+        body.indexOf("cf-browser-verification") !== -1 ||
+        body.indexOf("Just a moment") !== -1 ||
+        body.indexOf("__cf_chl_") !== -1)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function fetchWithCFCheck(url, headers = defaultHeaders) {
+  const resp = await Network.get(url, headers);
+  if (isCloudflareChallenge(resp.status, resp.body)) {
+    throw "Cloudflare 验证拦截：请在漫画源设置中点击「登录」，通过内置浏览器完成验证后再试。";
+  }
+  return resp;
+}
+
 function trimTitle(raw) {
   if (!raw) return "";
   const idx = raw.lastIndexOf(" (");
@@ -26,20 +56,26 @@ function parseIdFromHref(href) {
 
 function parseEpIdFromHref(href) {
   if (!href) return null;
-  const u = href.split("?")[0];
-  const parts = u.split("/").filter(Boolean);
-  if (parts.length >= 3) {
-    return decodeURIComponent(parts[2]);
-  }
+  try {
+    const u = href.split("?")[0];
+    const parts = u.split("/").filter(Boolean);
+    if (parts.length >= 3) {
+      return decodeURIComponent(parts[2]);
+    }
+  } catch {}
   return null;
 }
 
 function base64Decode(str) {
-  if (typeof atob === "function") {
-    try {
+  try {
+    if (typeof Convert !== "undefined" && Convert.decodeBase64 && Convert.decodeUtf8) {
+      return Convert.decodeUtf8(Convert.decodeBase64(str));
+    }
+    if (typeof atob === "function") {
       return atob(str);
-    } catch (e) {}
-  }
+    }
+  } catch (e) {}
+
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
   let output = "";
   str = String(str).replace(/=+$/, "");
@@ -68,7 +104,12 @@ function parseComicCard(card) {
     if (!id) return null;
 
     const img = card.querySelector("img.comic-thumb");
-    const cover = img ? img.attributes["src"] : "";
+    let cover = img ? (img.attributes["src"] || img.attributes["data-src"] || "") : "";
+    if (cover.startsWith("//")) {
+      cover = "https:" + cover;
+    } else if (cover.startsWith("/")) {
+      cover = JCOMIC_BASE + cover;
+    }
 
     const titleEl = card.querySelector("p.comic-title");
     const rawTitle = titleEl ? titleEl.text.trim() : id;
@@ -83,14 +124,13 @@ function parseComicCard(card) {
     const catButtons = card.querySelectorAll('a[href^="/cat/"] button');
     let tags = [];
     if (catButtons.length) {
-        tags = Array.from(catButtons).map((b) => b.text.trim());
+      tags = Array.from(catButtons).map((b) => b.text.trim());
     } else {
-    // 有些结构是 a[href^="/cat/..."] 包着文字
-    const catAnchors = card.querySelectorAll('a[href^="/cat/"]');
-    tags = Array.from(catAnchors)
-    .map((a) => a.text.trim())
-    .filter(Boolean);
-}   
+      const catAnchors = card.querySelectorAll('a[href^="/cat/"]');
+      tags = Array.from(catAnchors)
+        .map((a) => a.text.trim())
+        .filter(Boolean);
+    }
 
     // 最后更新
     const dateEl = card.querySelector("p.comic-date");
@@ -122,7 +162,7 @@ function parseMaxPage(doc) {
   as.forEach((a) => {
     const t = a.text.trim();
     const n = parseInt(t, 10);
-    if (!Number.isNaN(n) && n > max) max = n;
+    if (!isNaN(n) && n > max) max = n;
   });
   return max;
 }
@@ -147,13 +187,11 @@ class JComic extends ComicSource {
   name = "jcomic.net";
   key = "jcomic";
 
-  version = "1.0.1";
+  version = "1.0.2";
   minAppVersion = "1.4.6";
 
   url =
-    "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/jcomic.js";
-
-  currentComic = null;
+    "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jcomic-v1.0.2/jcomic.js";
 
   _buildUrl(path) {
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
@@ -161,33 +199,69 @@ class JComic extends ComicSource {
     return JCOMIC_BASE + path;
   }
 
-  /**
-   * [Optional] init
-   */
   init() {}
+
+  account = {
+    loginWithWebview: {
+      url: JCOMIC_BASE,
+      checkStatus: (url, title) => {
+        return (
+          !title.includes("Just a moment") &&
+          !title.includes("Cloudflare") &&
+          !title.includes("Attention Required")
+        );
+      },
+      onLoginSuccess: () => {},
+    },
+  };
 
   /// explore
   explore = [
     {
-      title: "JComic",
+      title: "最近更新",
       type: "multiPageComicList",
       load: async (page) => {
         if (!page) page = 1;
         const cat = "最近更新";
-        const encoded = encodeURI(cat);
+        const encoded = encodeURIComponent(cat);
         const path = page === 1 ? `/cat/${encoded}` : `/cat/${encoded}/${page}`;
         const url = this._buildUrl(path);
 
-        const resp = await Network.get(url, { referer: JCOMIC_REFERER });
+        const resp = await fetchWithCFCheck(url);
         if (resp.status !== 200) throw new Error(resp.status);
 
         const doc = new HtmlDocument(resp.body);
-        const comics = parseComicList(doc);
-        const maxPage = parseMaxPage(doc);
-
-        return { comics, maxPage };
+        try {
+          const comics = parseComicList(doc);
+          const maxPage = parseMaxPage(doc);
+          return { comics, maxPage };
+        } finally {
+          doc.dispose();
+        }
       },
-      loadNext(next) {},
+    },
+    {
+      title: "隨機",
+      type: "multiPageComicList",
+      load: async (page) => {
+        if (!page) page = 1;
+        const cat = "隨機";
+        const encoded = encodeURIComponent(cat);
+        const path = page === 1 ? `/cat/${encoded}` : `/cat/${encoded}/${page}`;
+        const url = this._buildUrl(path);
+
+        const resp = await fetchWithCFCheck(url);
+        if (resp.status !== 200) throw new Error(resp.status);
+
+        const doc = new HtmlDocument(resp.body);
+        try {
+          const comics = parseComicList(doc);
+          const maxPage = parseMaxPage(doc);
+          return { comics, maxPage };
+        } finally {
+          doc.dispose();
+        }
+      },
     },
   ];
 
@@ -291,18 +365,21 @@ class JComic extends ComicSource {
      */
     load: async (category, param, options, page) => {
       if (!page) page = 1;
-      const encoded = encodeURI(param);
+      const encoded = encodeURIComponent(param);
       const path = page === 1 ? `/cat/${encoded}` : `/cat/${encoded}/${page}`;
       const url = this._buildUrl(path);
 
-      const resp = await Network.get(url, { referer: JCOMIC_REFERER });
+      const resp = await fetchWithCFCheck(url);
       if (resp.status !== 200) throw new Error(resp.status);
 
       const doc = new HtmlDocument(resp.body);
-      const comics = parseComicList(doc);
-      const maxPage = parseMaxPage(doc);
-
-      return { comics, maxPage };
+      try {
+        const comics = parseComicList(doc);
+        const maxPage = parseMaxPage(doc);
+        return { comics, maxPage };
+      } finally {
+        doc.dispose();
+      }
     },
     optionList: [],
     ranking: null,
@@ -325,24 +402,23 @@ class JComic extends ComicSource {
       const path = page === 1 ? `/search/${encoded}` : `/search/${encoded}/${page}`;
       const url = this._buildUrl(path);
 
-      const resp = await Network.get(url, { referer: JCOMIC_REFERER });
+      const resp = await fetchWithCFCheck(url);
       if (resp.status !== 200) throw new Error(resp.status);
 
-      const doc = new HtmlDocument(resp.body);
-      const comics = parseComicList(doc);
-      const maxPage = parseMaxPage(doc);
+      if (resp.body.includes("找到0本相關本子") || resp.body.includes("找到0本")) {
+        return { comics: [], maxPage: 1 };
+      }
 
-      return { comics, maxPage };
+      const doc = new HtmlDocument(resp.body);
+      try {
+        const comics = parseComicList(doc);
+        const maxPage = parseMaxPage(doc);
+        return { comics, maxPage };
+      } finally {
+        doc.dispose();
+      }
     },
-    loadNext: async (keyword, options, next) => {},
-    optionList: [
-      {
-        type: "select",
-        options: ["0-Default"],
-        label: "sort",
-        default: null,
-      },
-    ],
+    optionList: [],
     enableTagsSuggestions: false,
   };
 
@@ -354,103 +430,119 @@ class JComic extends ComicSource {
      * @returns {Promise<ComicDetails>}
      */
     loadInfo: async (id) => {
-      const encodedId = encodeURI(id);
+      const encodedId = encodeURIComponent(id);
       const url = this._buildUrl(`/eps/${encodedId}`);
-      const resp = await Network.get(url, { referer: JCOMIC_REFERER });
+      const resp = await fetchWithCFCheck(url);
       if (resp.status !== 200) throw new Error(resp.status);
 
       const doc = new HtmlDocument(resp.body);
+      try {
+        const infoBlock =
+          doc.querySelector("div.row.col-md-6.col-xs-12") || doc;
 
-      const infoBlock = doc.querySelector(
-        'div.row.col-md-6.col-xs-12'
-      );
-      if (!infoBlock) {
-        throw new Error("failed to parse comic info");
-      }
-
-      // 标题和总页数
-      const titleEl = infoBlock.querySelector("p.comic-title");
-      const rawTitle = titleEl ? titleEl.text.trim() : id;
-      const title = trimTitle(rawTitle);
-      let totalPages = 1;
-      const pageMatch = /\((\d+)\)/.exec(rawTitle);
-      if (pageMatch) {
-        totalPages = parseInt(pageMatch[1], 10) || 1;
-      }
-
-      // 封面
-      const img = infoBlock.querySelector("img.comic-thumb");
-      const cover = img ? img.attributes["src"] : "";
-
-      // 作者
-      const authorButtons = infoBlock.querySelectorAll(
-        'a[href^="/author/"] button'
-      );
-      const authors = Array.from(authorButtons).map((b) => b.text.trim());
-
-      // 分类标签
-      const catButtons = infoBlock.querySelectorAll('a[href^="/cat/"] button');
-      const categories = Array.from(catButtons).map((b) => b.text.trim());
-
-      // 更新时间
-      const dateEl = infoBlock.querySelector("p.comic-date");
-      const uploadTime = dateEl ? dateEl.text.trim() : "";
-
-      // 章节列表
-      const allPageLinks = doc.querySelectorAll('a[href^="/page/"]');
-      let eps = [];
-      
-      allPageLinks.forEach((a) => {
-        const href = a.attributes["href"];
-        // 检查这个链接是否属于当前漫画
-        const linkComicId = parseIdFromHref(href);
-        if (linkComicId === id) {
-          const epId = parseEpIdFromHref(href);
-          if (epId) {
-            let text = a.text.trim();
-            if (!text) {
-              const btn = a.querySelector("button");
-              if (btn) text = btn.text.trim();
-            }
-            eps.push({
-              id: epId,
-              title: text || `第${epId}話`,
-            });
-          }
+        // 标题和总页数
+        const titleEl =
+          infoBlock.querySelector("p.comic-title") ||
+          doc.querySelector("p.comic-title");
+        const rawTitle = titleEl ? titleEl.text.trim() : id;
+        const title = trimTitle(rawTitle);
+        let totalPages = 1;
+        const pageMatch = /\((\d+)\)/.exec(rawTitle);
+        if (pageMatch) {
+          totalPages = parseInt(pageMatch[1], 10) || 1;
         }
-      });
 
-      // tags Map
-      const tags = new Map();
-      if (authors.length) tags.set("authors", authors);
-      if (categories.length) tags.set("categories", categories);
+        // 封面
+        const img =
+          infoBlock.querySelector("img.comic-thumb") ||
+          doc.querySelector("img.comic-thumb");
+        let cover = img ? (img.attributes["src"] || img.attributes["data-src"] || "") : "";
+        if (cover.startsWith("//")) {
+          cover = "https:" + cover;
+        } else if (cover.startsWith("/")) {
+          cover = JCOMIC_BASE + cover;
+        }
 
-      // 构建 chapters Map
-      const chapters = new Map();
-      eps.forEach((ep) => {
-        chapters.set(ep.id, ep.title);
-      });
+        // 作者
+        const authorButtons = infoBlock.querySelectorAll(
+          'a[href^="/author/"] button'
+        );
+        const authors = Array.from(authorButtons).map((b) => b.text.trim());
 
-      this.currentComic = {
-        id,
-        title,
-        cover,
-        authors,
-        categories,
-        eps,
-      };
+        // 分类标签
+        const catButtons = infoBlock.querySelectorAll('a[href^="/cat/"] button');
+        let categories = [];
+        if (catButtons.length) {
+          categories = Array.from(catButtons).map((b) => b.text.trim());
+        } else {
+          const catAnchors = infoBlock.querySelectorAll('a[href^="/cat/"]');
+          categories = Array.from(catAnchors)
+            .map((a) => a.text.trim())
+            .filter(Boolean);
+        }
 
-      return new ComicDetails({
-        title,
-        cover,
-        tags,
-        chapters,
-        maxPage: totalPages,
-        thumbnails: [cover],
-        uploadTime,
-        url: url,
-        recommend: undefined,
-      });
+        // 更新时间
+        const dateEl =
+          infoBlock.querySelector("p.comic-date") ||
+          doc.querySelector("p.comic-date");
+        const uploadTime = dateEl ? dateEl.text.trim() : "";
+
+        // 章节列表
+        const allPageLinks = doc.querySelectorAll('a[href^="/page/"]');
+        let eps = [];
+
+        allPageLinks.forEach((a) => {
+          const href = a.attributes["href"];
+          const linkComicId = parseIdFromHref(href);
+          if (linkComicId === id) {
+            const epId = parseEpIdFromHref(href);
+            if (epId) {
+              let text = a.text.trim();
+              if (!text) {
+                const btn = a.querySelector("button");
+                if (btn) text = btn.text.trim();
+              }
+              eps.push({
+                id: epId,
+                title: text || `第${epId}話`,
+              });
+            }
+          }
+        });
+
+        // 兜底：若短篇单行本页面无章节拆分按钮，补充默认单话
+        if (eps.length === 0) {
+          eps.push({
+            id: "1",
+            title: "全一話",
+          });
+        }
+
+        // tags Map
+        const tags = new Map();
+        if (authors.length) tags.set("作者", authors);
+        if (categories.length) tags.set("分類", categories);
+
+        // 构建 chapters Map
+        const chapters = new Map();
+        eps.forEach((ep) => {
+          chapters.set(ep.id, ep.title);
+        });
+
+        return new ComicDetails({
+          title,
+          cover,
+          tags,
+          chapters,
+          maxPage: totalPages,
+          thumbnails: [cover],
+          uploadTime,
+          url: url,
+          recommend: undefined,
+        });
+      } finally {
+        doc.dispose();
+      }
     },
 
     /**
@@ -460,78 +552,78 @@ class JComic extends ComicSource {
      * @returns {Promise<{images: string[]}>}
      */
     loadEp: async (comicId, epId) => {
-      const encodedComicId = encodeURI(comicId);
+      const encodedComicId = encodeURIComponent(comicId);
       let path = `/page/${encodedComicId}`;
       if (epId) {
-        // epId 里可能有 11.5、14.2 等，直接当原始字符串 encode 一下
         path += "/" + encodeURIComponent(epId);
       }
       const url = JCOMIC_BASE + path;
 
-      const resp = await Network.get(url, { referer: JCOMIC_REFERER });
+      const resp = await fetchWithCFCheck(url);
       if (resp.status !== 200) throw new Error(resp.status);
 
       const doc = new HtmlDocument(resp.body);
-      const imgs = doc.querySelectorAll("img.comic-thumb, img.jcomic-img");
-      const images = [];
+      try {
+        const imgs = doc.querySelectorAll("img.comic-thumb, img.jcomic-img");
+        const images = [];
 
-      for (const img of imgs) {
-        let imgUrl = "";
-        const lockedStr = img.attributes["data-locked"];
-        if (lockedStr) {
-          try {
-            const cleanStr = lockedStr.replace("JCOMIC_TRAPS_", "");
-            const unreversed = cleanStr.split("").reverse().join("");
-            imgUrl = base64Decode(unreversed);
-          } catch (e) {}
-        }
-        if (!imgUrl) {
-          imgUrl = img.attributes["src"] || img.attributes["data-src"] || "";
-        }
-        if (imgUrl) {
-          if (imgUrl.startsWith("//")) {
-            imgUrl = "https:" + imgUrl;
-          } else if (imgUrl.startsWith("/")) {
-            imgUrl = JCOMIC_BASE + imgUrl;
+        for (const img of imgs) {
+          let imgUrl = "";
+          const lockedStr = img.attributes["data-locked"];
+          if (lockedStr) {
+            try {
+              const cleanStr = lockedStr.replace("JCOMIC_TRAPS_", "");
+              const unreversed = cleanStr.split("").reverse().join("");
+              imgUrl = base64Decode(unreversed);
+            } catch (e) {}
           }
-          images.push(imgUrl);
+          if (!imgUrl) {
+            imgUrl = img.attributes["src"] || img.attributes["data-src"] || "";
+          }
+          if (imgUrl) {
+            if (imgUrl.startsWith("//")) {
+              imgUrl = "https:" + imgUrl;
+            } else if (imgUrl.startsWith("/")) {
+              imgUrl = JCOMIC_BASE + imgUrl;
+            }
+            images.push(imgUrl);
+          }
         }
-      }
 
-      return { images };
+        return { images };
+      } finally {
+        doc.dispose();
+      }
     },
 
     onImageLoad: (url, comicId, epId) => {
       return {
         url,
-        headers: {
-          referer: JCOMIC_REFERER,
-          cookie: "jcomic_access=verified_user",
-          "user-agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
+        headers: defaultHeaders,
       };
     },
 
     onThumbnailLoad: (url) => {
       return {
         url,
-        headers: {
-          referer: JCOMIC_REFERER,
-          cookie: "jcomic_access=verified_user",
-          "user-agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
+        headers: defaultHeaders,
       };
     },
 
     onClickTag: (namespace, tag) => {
-      const keyword = tag; 
+      if (namespace === "作者" || namespace === "authors") {
+        return {
+          page: "search",
+          attributes: {
+            keyword: tag,
+          },
+        };
+      }
       return {
         page: "category",
         attributes: {
           category: "分類",
-          param: keyword,
+          param: tag,
         },
       };
     },
