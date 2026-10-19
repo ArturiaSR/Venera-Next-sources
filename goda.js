@@ -139,7 +139,7 @@ function isCloudflareChallenge(status, body) {
 async function requestWithCFCheck(url, headers) {
     const res = await Network.get(url, headers);
     if (isCloudflareChallenge(res.status, res.body)) {
-        throw "Cloudflare 验证拦截：请在漫画源设置中点击「登录」，通过内置浏览器完成验证后再试。";
+        throw "Cloudflare 验证拦截：请在漫画源设置中切换备用域名，或稍后重试。";
     }
     return res;
 }
@@ -152,21 +152,12 @@ class Goda extends ComicSource {
   // 源唯一标识
   key = "goda"
 
-  version = "1.2.2"
+  version = "1.2.3"
 
   minAppVersion = "1.4.0"
 
   // 更新地址 (必须使用固定 Git Tag，严禁使用 @main)
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@v1.2.2/goda.js"
-
-  account = {
-    loginWithWebview: {
-      url: "https://godamh.com",
-      checkStatus: (url, title) => {
-        return Boolean(title && !title.includes("Just a moment") && !title.includes("Cloudflare"));
-      }
-    }
-  }
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@v1.2.3/goda.js"
 
   settings = {
     domains: {
