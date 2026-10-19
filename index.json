@@ -10,8 +10,8 @@
   {
     "name": "GoDa漫画",
     "key": "goda",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/goda.js",
+    "version": "1.2.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@v1.2.2/goda.js",
     "fileName": "goda.js",
     "description": "GoDa漫画 (goda)"
   },
