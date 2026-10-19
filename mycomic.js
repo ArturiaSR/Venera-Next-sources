@@ -86,52 +86,103 @@ function escapeRegex(s) {
 }
 
 /**
- * Parse comic list from an HtmlDocument
- * Finds all <a> links to /cn/comics/{id} that contain an <img> with a CDN cover
- * @param {HtmlDocument} doc
+ * Parse comic card from an <a> element
+ * @param {HtmlElement} a
+ * @returns {Comic|null}
+ */
+function parseComicCard(a) {
+    const href = a.attributes["href"] || "";
+    const match = /\/comics\/(\d+)/.exec(href);
+    if (!match) return null;
+    const id = match[1];
+
+    const img = a.querySelector("img");
+    if (!img) return null;
+
+    let cover = img.attributes["data-src"] ||
+        img.attributes["data-original"] ||
+        img.attributes["data-lazy-src"] ||
+        img.attributes["src"] ||
+        "";
+    if (cover.startsWith("data:")) {
+        cover = img.attributes["data-src"] ||
+            img.attributes["data-original"] ||
+            img.attributes["data-lazy-src"] ||
+            "";
+    }
+
+    if (!cover) {
+        cover = CDN_URL + "/comics/" + id + ".jpg";
+    } else if (cover.startsWith("//")) {
+        cover = "https:" + cover;
+    } else if (cover.startsWith("/")) {
+        cover = "https://mycomic.com" + cover;
+    }
+
+    let title = (img.attributes["alt"] || "").trim();
+    if (!title) {
+        const titleEl = a.querySelector("h3, h4, div.font-bold, div.font-medium, span.title, div.truncate");
+        if (titleEl) {
+            title = titleEl.text.trim();
+        }
+    }
+    if (!title) title = id;
+
+    let description = "";
+    const chapterDiv = a.querySelector("div.truncate, span.truncate");
+    if (chapterDiv) {
+        description = chapterDiv.text.trim();
+    }
+
+    return new Comic({
+        id: id,
+        title: title,
+        cover: cover,
+        description: description,
+        language: "zh-Hans",
+    });
+}
+
+/**
+ * Parse comic list from an HtmlDocument or HtmlElement
+ * @param {HtmlDocument|HtmlElement} root
+ * @param {boolean} [dedup=true]
  * @returns {Comic[]}
  */
-function parseComicList(doc) {
-    const links = doc.querySelectorAll("a[href*='/cn/comics/']");
+function parseComicList(root, dedup = true) {
+    if (!root) return [];
+    const links = root.querySelectorAll("a[href*='/comics/']");
     const comics = [];
     const seen = new Set();
 
-    links.forEach((a) => {
-        const href = a.attributes["href"] || "";
-        const match = /\/cn\/comics\/(\d+)/.exec(href);
-        if (!match) return;
-        const id = match[1];
-        if (seen.has(id)) return;
-
-        const img = a.querySelector("img");
-        if (!img) return;
-
-        // Cover: prefer data-src (lazy-loaded), fallback to src
-        let cover = img.attributes["data-src"] || img.attributes["src"] || "";
-        if (!cover || cover.indexOf("biccam.com/comics/") === -1) return;
-
-        // Title from alt attribute
-        const title = (img.attributes["alt"] || "").trim() || id;
-
-        // Latest chapter info
-        let description = "";
-        const chapterDiv = a.querySelector("div.truncate");
-        if (chapterDiv) {
-            description = chapterDiv.text.trim();
+    for (let i = 0; i < links.length; i++) {
+        const comic = parseComicCard(links[i]);
+        if (!comic) continue;
+        if (dedup) {
+            if (seen.has(comic.id)) continue;
+            seen.add(comic.id);
         }
+        comics.push(comic);
+    }
 
-        seen.add(id);
-        comics.push(
-            new Comic({
-                id: id,
-                title: title,
-                cover: cover,
-                description: description,
-                language: "zh-Hans",
-            })
-        );
-    });
+    return comics;
+}
 
+/**
+ * Parse all comic cards preserving order without global cross-section deduplication
+ * @param {HtmlDocument|HtmlElement} root
+ * @returns {Comic[]}
+ */
+function parseAllComicCards(root) {
+    if (!root) return [];
+    const links = root.querySelectorAll("a[href*='/comics/']");
+    const comics = [];
+    for (let i = 0; i < links.length; i++) {
+        const c = parseComicCard(links[i]);
+        if (!c) continue;
+        if (comics.length > 0 && comics[comics.length - 1].id === c.id) continue;
+        comics.push(c);
+    }
     return comics;
 }
 
@@ -177,7 +228,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.1";
+    version = "1.1.2";
 
     minAppVersion = "1.4.6";
 
@@ -263,7 +314,7 @@ class MyComic extends ComicSource {
     };
 
     // ==================== Explore ====================
-    // 单一首页探索页 (类似 baihehui.js)，展示网站首页的聚合推荐数据
+    // 首页探索页：默认无标题分区、推荐给你、最近更新、最新上架 四个分区 (共48条)
     explore = [
         {
             title: "MYCOMIC",
@@ -274,25 +325,84 @@ class MyComic extends ComicSource {
                 const doc = new HtmlDocument(resp.body);
                 const parts = {};
 
-                // 尝试抓取首页带有标题的各个区块
-                const sections = doc.querySelectorAll("section, div.my-6, div.my-8, div.mb-8, div.space-y-6 > div, div.space-y-8 > div");
-                for (const sec of sections) {
-                    const titleEl = sec.querySelector("h2, h3, .font-bold");
-                    const title = titleEl ? titleEl.text.trim() : "";
-                    if (title) {
-                        const comics = parseComicList(sec);
-                        if (comics.length > 0) {
-                            parts[title] = comics;
-                        }
+                // 策略 1：检查 4 个分区网格容器 (每个分区12条)
+                const candidateGrids = doc.querySelectorAll("div.grid, div[class*='grid'], ul.grid");
+                const sectionGrids = [];
+                for (let i = 0; i < candidateGrids.length; i++) {
+                    const list = parseComicList(candidateGrids[i], true);
+                    if (list.length >= 10 && list.length <= 14) {
+                        sectionGrids.push(list);
                     }
                 }
 
-                // 若未按分组结构匹配到，则将首页所有漫画放入「首页推荐」
-                if (Object.keys(parts).length === 0) {
-                    const comics = parseComicList(doc);
-                    if (comics.length > 0) {
-                        parts["首页推荐"] = comics;
+                if (sectionGrids.length === 4) {
+                    parts[""] = sectionGrids[0];
+                    parts["推荐给你"] = sectionGrids[1];
+                    parts["最近更新"] = sectionGrids[2];
+                    parts["最新上架"] = sectionGrids[3];
+                    doc.dispose();
+                    return parts;
+                }
+
+                // 策略 2：通过标题关键字定位分区
+                const allHeadings = doc.querySelectorAll("h1, h2, h3, h4, .text-xl, .text-lg, .font-bold");
+                let recComics = [];
+                let updateComics = [];
+                let latestComics = [];
+
+                function getComicsNearHeading(h) {
+                    if (!h) return [];
+                    let p = h.parent;
+                    let list = p ? parseComicList(p, true) : [];
+                    if (list.length >= 6) return list;
+                    let next = p ? p.nextElementSibling : null;
+                    list = next ? parseComicList(next, true) : [];
+                    if (list.length >= 6) return list;
+                    next = h.nextElementSibling;
+                    list = next ? parseComicList(next, true) : [];
+                    if (list.length >= 6) return list;
+                    let gp = p ? p.parent : null;
+                    list = gp ? parseComicList(gp, true) : [];
+                    if (list.length >= 6) return list;
+                    return [];
+                }
+
+                for (let i = 0; i < allHeadings.length; i++) {
+                    const text = allHeadings[i].text.trim();
+                    if (text.indexOf("推荐给你") !== -1 && recComics.length === 0) {
+                        recComics = getComicsNearHeading(allHeadings[i]);
+                    } else if (text.indexOf("最近更新") !== -1 && updateComics.length === 0) {
+                        updateComics = getComicsNearHeading(allHeadings[i]);
+                    } else if (text.indexOf("最新上架") !== -1 && latestComics.length === 0) {
+                        latestComics = getComicsNearHeading(allHeadings[i]);
                     }
+                }
+
+                const allCards = parseAllComicCards(doc);
+
+                if (recComics.length > 0 && updateComics.length > 0 && latestComics.length > 0) {
+                    parts[""] = allCards.slice(0, 12);
+                    parts["推荐给你"] = recComics.slice(0, 12);
+                    parts["最近更新"] = updateComics.slice(0, 12);
+                    parts["最新上架"] = latestComics.slice(0, 12);
+                    doc.dispose();
+                    return parts;
+                }
+
+                // 策略 3 (保底)：按 DOM 顺序拆分首页 48 条漫画到 4 个分区
+                if (allCards.length >= 48) {
+                    parts[""] = allCards.slice(0, 12);
+                    parts["推荐给你"] = allCards.slice(12, 24);
+                    parts["最近更新"] = allCards.slice(24, 36);
+                    parts["最新上架"] = allCards.slice(36, 48);
+                } else if (allCards.length >= 4) {
+                    const chunkSize = Math.floor(allCards.length / 4);
+                    parts[""] = allCards.slice(0, chunkSize);
+                    parts["推荐给你"] = allCards.slice(chunkSize, chunkSize * 2);
+                    parts["最近更新"] = allCards.slice(chunkSize * 2, chunkSize * 3);
+                    parts["最新上架"] = allCards.slice(chunkSize * 3);
+                } else {
+                    parts[""] = allCards;
                 }
 
                 doc.dispose();
