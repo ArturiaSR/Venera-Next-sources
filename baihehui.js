@@ -8,12 +8,12 @@ class Baihehui extends ComicSource {
     // unique id of the source
     key = "baihehui"
 
-    version = "1.0.1"
+    version = "1.0.2"
 
     minAppVersion = "1.4.0"
 
     // update url
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@v1.0.1/baihehui.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@v1.0.2/baihehui.js"
 
     settings = {
         domains: {
@@ -256,7 +256,7 @@ explore = [
                 categoryParams: Object.values(Baihehui.article_types),
             },
             {
-                name: "更多推荐",
+                name: "更多推荐（需要登陆）",
                 type: "fixed",
                 categories: Object.keys(Baihehui.relate_types),
                 itemType: "category",
