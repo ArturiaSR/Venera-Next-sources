@@ -209,19 +209,20 @@ function parseComicCard(a, coversMap = null) {
         cover = coversMap.get(id);
     }
 
-    // Try finding img inside a, or across up to 4 parent levels
+    let img = a.querySelector("img");
     if (!cover) {
-        let img = a.querySelector("img");
         cover = extractCoverFromImg(img);
     }
 
     let curr = a.parent;
-    for (let depth = 0; depth < 4 && !cover && curr; depth++) {
-        const img = curr.querySelector("img");
-        cover = extractCoverFromImg(img);
-        if (!cover && curr.attributes && curr.attributes["style"]) {
-            const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(curr.attributes["style"]);
-            if (bgm) cover = normalizeImageUrl(bgm[1]);
+    for (let depth = 0; depth < 4 && curr; depth++) {
+        if (!img) img = curr.querySelector("img");
+        if (!cover) {
+            cover = extractCoverFromImg(img);
+            if (!cover && curr.attributes && curr.attributes["style"]) {
+                const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(curr.attributes["style"]);
+                if (bgm) cover = normalizeImageUrl(bgm[1]);
+            }
         }
         curr = curr.parent;
     }
@@ -345,7 +346,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.6";
+    version = "1.1.7";
 
     minAppVersion = "1.4.6";
 
