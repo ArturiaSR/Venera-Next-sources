@@ -96,19 +96,28 @@ function parseComicCard(a) {
     if (!match) return null;
     const id = match[1];
 
-    const img = a.querySelector("img");
-    if (!img) return null;
+    // Try finding img inside a, or as sibling/parent
+    let img = a.querySelector("img");
+    if (!img && a.parent) {
+        img = a.parent.querySelector("img");
+    }
+    if (!img && a.parent && a.parent.parent) {
+        img = a.parent.parent.querySelector("img");
+    }
 
-    let cover = img.attributes["data-src"] ||
-        img.attributes["data-original"] ||
-        img.attributes["data-lazy-src"] ||
-        img.attributes["src"] ||
-        "";
-    if (cover.startsWith("data:")) {
+    let cover = "";
+    if (img) {
         cover = img.attributes["data-src"] ||
             img.attributes["data-original"] ||
             img.attributes["data-lazy-src"] ||
+            img.attributes["src"] ||
             "";
+        if (cover.startsWith("data:")) {
+            cover = img.attributes["data-src"] ||
+                img.attributes["data-original"] ||
+                img.attributes["data-lazy-src"] ||
+                "";
+        }
     }
 
     if (!cover) {
@@ -119,9 +128,12 @@ function parseComicCard(a) {
         cover = "https://mycomic.com" + cover;
     }
 
-    let title = (img.attributes["alt"] || "").trim();
+    let title = img ? (img.attributes["alt"] || "").trim() : "";
     if (!title) {
-        const titleEl = a.querySelector("h3, h4, div.font-bold, div.font-medium, span.title, div.truncate");
+        title = a.text.trim();
+    }
+    if (!title && a.parent) {
+        const titleEl = a.parent.querySelector("h3, h4, div.font-bold, div.font-medium, span.title, div.truncate");
         if (titleEl) {
             title = titleEl.text.trim();
         }
@@ -129,7 +141,8 @@ function parseComicCard(a) {
     if (!title) title = id;
 
     let description = "";
-    const chapterDiv = a.querySelector("div.truncate, span.truncate");
+    const chapterDiv = a.querySelector("div.truncate, span.truncate") ||
+        (a.parent ? a.parent.querySelector("div.truncate, span.truncate") : null);
     if (chapterDiv) {
         description = chapterDiv.text.trim();
     }
@@ -228,7 +241,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.2";
+    version = "1.1.3";
 
     minAppVersion = "1.4.6";
 
@@ -314,7 +327,7 @@ class MyComic extends ComicSource {
     };
 
     // ==================== Explore ====================
-    // 首页探索页：默认无标题分区、推荐给你、最近更新、最新上架 四个分区 (共48条)
+    // 首页探索页：默认无标题分区、推荐给你、最近更新、最新上架 四个分区 (单行4条，整行保证8条或12条)
     explore = [
         {
             title: "MYCOMIC",
@@ -325,21 +338,30 @@ class MyComic extends ComicSource {
                 const doc = new HtmlDocument(resp.body);
                 const parts = {};
 
-                // 策略 1：检查 4 个分区网格容器 (每个分区12条)
+                // 单行4条：保证每个分区为 8 条 (2行) 或 12 条 (3行)，避免单数落单
+                function fitToRow(list, max = 12) {
+                    if (!list || list.length === 0) return [];
+                    if (list.length >= 12 && max >= 12) return list.slice(0, 12);
+                    if (list.length >= 8) return list.slice(0, 8);
+                    if (list.length >= 4) return list.slice(0, 4);
+                    return list;
+                }
+
+                // 策略 1：检查 4 个分区网格容器 (每个分区通常为 8~16 条)
                 const candidateGrids = doc.querySelectorAll("div.grid, div[class*='grid'], ul.grid");
                 const sectionGrids = [];
                 for (let i = 0; i < candidateGrids.length; i++) {
                     const list = parseComicList(candidateGrids[i], true);
-                    if (list.length >= 10 && list.length <= 14) {
+                    if (list.length >= 8 && list.length <= 16) {
                         sectionGrids.push(list);
                     }
                 }
 
                 if (sectionGrids.length === 4) {
-                    parts[""] = sectionGrids[0];
-                    parts["推荐给你"] = sectionGrids[1];
-                    parts["最近更新"] = sectionGrids[2];
-                    parts["最新上架"] = sectionGrids[3];
+                    parts[""] = fitToRow(sectionGrids[0]);
+                    parts["推荐给你"] = fitToRow(sectionGrids[1]);
+                    parts["最近更新"] = fitToRow(sectionGrids[2]);
+                    parts["最新上架"] = fitToRow(sectionGrids[3]);
                     doc.dispose();
                     return parts;
                 }
@@ -381,28 +403,35 @@ class MyComic extends ComicSource {
                 const allCards = parseAllComicCards(doc);
 
                 if (recComics.length > 0 && updateComics.length > 0 && latestComics.length > 0) {
-                    parts[""] = allCards.slice(0, 12);
-                    parts["推荐给你"] = recComics.slice(0, 12);
-                    parts["最近更新"] = updateComics.slice(0, 12);
-                    parts["最新上架"] = latestComics.slice(0, 12);
+                    parts[""] = fitToRow(allCards);
+                    parts["推荐给你"] = fitToRow(recComics);
+                    parts["最近更新"] = fitToRow(updateComics);
+                    parts["最新上架"] = fitToRow(latestComics);
                     doc.dispose();
                     return parts;
                 }
 
-                // 策略 3 (保底)：按 DOM 顺序拆分首页 48 条漫画到 4 个分区
+                // 策略 3 (保底)：按 DOM 顺序拆分首页漫画到 4 个分区
                 if (allCards.length >= 48) {
-                    parts[""] = allCards.slice(0, 12);
-                    parts["推荐给你"] = allCards.slice(12, 24);
-                    parts["最近更新"] = allCards.slice(24, 36);
-                    parts["最新上架"] = allCards.slice(36, 48);
-                } else if (allCards.length >= 4) {
-                    const chunkSize = Math.floor(allCards.length / 4);
-                    parts[""] = allCards.slice(0, chunkSize);
-                    parts["推荐给你"] = allCards.slice(chunkSize, chunkSize * 2);
-                    parts["最近更新"] = allCards.slice(chunkSize * 2, chunkSize * 3);
-                    parts["最新上架"] = allCards.slice(chunkSize * 3);
+                    parts[""] = fitToRow(allCards.slice(0, 12));
+                    parts["推荐给你"] = fitToRow(allCards.slice(12, 24));
+                    parts["最近更新"] = fitToRow(allCards.slice(24, 36));
+                    parts["最新上架"] = fitToRow(allCards.slice(36, 48));
+                } else if (allCards.length >= 32) {
+                    // 若总共约 32~36 条 (例如移动端 9 条 x 4)，每个分区保证 8 条整行
+                    const size = Math.floor(allCards.length / 4);
+                    parts[""] = fitToRow(allCards.slice(0, size));
+                    parts["推荐给你"] = fitToRow(allCards.slice(size, size * 2));
+                    parts["最近更新"] = fitToRow(allCards.slice(size * 2, size * 3));
+                    parts["最新上架"] = fitToRow(allCards.slice(size * 3, size * 4));
+                } else if (allCards.length >= 16) {
+                    const size = Math.floor(allCards.length / 4);
+                    parts[""] = fitToRow(allCards.slice(0, size));
+                    parts["推荐给你"] = fitToRow(allCards.slice(size, size * 2));
+                    parts["最近更新"] = fitToRow(allCards.slice(size * 2, size * 3));
+                    parts["最新上架"] = fitToRow(allCards.slice(size * 3));
                 } else {
-                    parts[""] = allCards;
+                    parts[""] = fitToRow(allCards);
                 }
 
                 doc.dispose();
