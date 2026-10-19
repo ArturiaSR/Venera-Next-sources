@@ -1,0 +1,770 @@
+[
+  {
+    "name": "少年Jump+",
+    "key": "shonen_jump_plus",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/shonen_jump_plus.js",
+    "fileName": "shonen_jump_plus.js",
+    "description": "少年Jump+ (shonen_jump_plus)"
+  },
+  {
+    "name": "拷贝漫画",
+    "key": "copy_manga",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/copy_manga.js",
+    "fileName": "copy_manga.js",
+    "description": "拷贝漫画 (copy_manga)"
+  },
+  {
+    "name": "爱看漫",
+    "key": "ikmmh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ikmmh.js",
+    "fileName": "ikmmh.js",
+    "description": "爱看漫 (ikmmh)"
+  },
+  {
+    "name": "PicACG",
+    "key": "picacg",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/picacg.js",
+    "fileName": "picacg.js",
+    "description": "PicACG (picacg)"
+  },
+  {
+    "name": "漫蛙吧",
+    "key": "manwaba",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/manwaba.js",
+    "fileName": "manwaba.js",
+    "description": "漫蛙吧 (manwaba)"
+  },
+  {
+    "name": "漫画人",
+    "key": "manhuaren",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/manhuaren.js",
+    "fileName": "manhuaren.js",
+    "description": "漫画人 (manhuaren)"
+  },
+  {
+    "name": "漫画1234",
+    "key": "mh1234",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh1234.js",
+    "fileName": "mh1234.js",
+    "description": "漫画1234 (mh1234)"
+  },
+  {
+    "name": "漫小肆",
+    "key": "mxs",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mxs.js",
+    "fileName": "mxs.js",
+    "description": "漫小肆 (mxs)"
+  },
+  {
+    "name": "漫画柜",
+    "key": "manhuagui",
+    "version": "1.2.1",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/manhuagui.js",
+    "fileName": "manhuagui.js",
+    "description": "漫画柜 (ManHuaGui)"
+  },
+  {
+    "name": "Comick",
+    "key": "comick",
+    "version": "1.2.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/comick.js",
+    "fileName": "comick.js",
+    "description": "Comick (comick)"
+  },
+  {
+    "name": "优酷漫画",
+    "key": "ykmh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ykmh.js",
+    "fileName": "ykmh.js",
+    "description": "优酷漫画 (ykmh)"
+  },
+  {
+    "name": "MangaDex",
+    "key": "mangadex",
+    "version": "1.2.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mangadex.js",
+    "fileName": "mangadex.js",
+    "description": "MangaDex (mangadex)"
+  },
+  {
+    "name": "包子漫画",
+    "key": "baozi",
+    "version": "1.1.6",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/baozi.js",
+    "fileName": "baozi.js",
+    "description": "包子漫画 (baozi)"
+  },
+  {
+    "name": "CCC追漫台",
+    "key": "ccc",
+    "version": "1.0.1",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ccc.js",
+    "fileName": "ccc.js",
+    "description": "CCC追漫台 (ccc)"
+  },
+  {
+    "name": "カドコミ",
+    "key": "comic_walker",
+    "version": "1.0.1",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/comic_walker.js",
+    "fileName": "comic_walker.js",
+    "description": "カドコミ (comic_walker)"
+  },
+  {
+    "name": "动漫屋",
+    "key": "dm5",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dm5.js",
+    "fileName": "dm5.js",
+    "description": "动漫屋 (dm5)"
+  },
+  {
+    "name": "好多漫画",
+    "key": "haoduoman",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/haoduoman.js",
+    "fileName": "haoduoman.js",
+    "description": "好多漫画 (haoduoman)"
+  },
+  {
+    "name": "看漫画",
+    "key": "kanman",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/kanman.js",
+    "fileName": "kanman.js",
+    "description": "看漫画 (kanman)"
+  },
+  {
+    "name": "再漫画",
+    "key": "zaimanhua",
+    "version": "1.0.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/zaimanhua.js",
+    "fileName": "zaimanhua.js",
+    "description": "再漫画 (zaimanhua)"
+  },
+  {
+    "name": "Komiic",
+    "key": "komiic",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/komiic.js",
+    "fileName": "komiic.js",
+    "description": "Komiic"
+  },
+  {
+    "name": "YY漫画",
+    "key": "yymanhua",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/yymanhua.js",
+    "fileName": "yymanhua.js",
+    "description": "YY漫画"
+  },
+  {
+    "name": "桂露莉漫画",
+    "key": "guiluoli",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/guiluoli.js",
+    "fileName": "guiluoli.js",
+    "description": "桂露莉漫画"
+  },
+  {
+    "name": "读漫屋",
+    "key": "dumanwu",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dumanwu.js",
+    "fileName": "dumanwu.js",
+    "description": "读漫屋"
+  },
+  {
+    "name": "Mangabz",
+    "key": "mangabz",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mangabz.js",
+    "fileName": "mangabz.js",
+    "description": "Mangabz"
+  },
+  {
+    "name": "漫画160",
+    "key": "mh160",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh160.js",
+    "fileName": "mh160.js",
+    "description": "漫画160"
+  },
+  {
+    "name": "36漫画",
+    "key": "mh36",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh36.js",
+    "fileName": "mh36.js",
+    "description": "36漫画"
+  },
+  {
+    "name": "X漫画",
+    "key": "xmanhua",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/xmanhua.js",
+    "fileName": "xmanhua.js",
+    "description": "X漫画"
+  },
+  {
+    "name": "Colamanga",
+    "key": "colamanga",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/colamanga.js",
+    "fileName": "colamanga.js",
+    "description": "Colamanga"
+  },
+  {
+    "name": "nhentai",
+    "key": "nhentai",
+    "version": "1.1.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/nhentai.js",
+    "fileName": "nhentai.js",
+    "description": "nhentai (R18)"
+  },
+  {
+    "name": "紳士漫畫",
+    "key": "wnacg",
+    "version": "1.0.5",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/wnacg.js",
+    "fileName": "wnacg.js",
+    "description": "紳士漫畫 (R18), 不能使用時請嘗試更換URL"
+  },
+  {
+    "name": "ehentai",
+    "key": "ehentai",
+    "version": "1.2.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ehentai.js",
+    "fileName": "ehentai.js",
+    "description": "ehentai (R18)"
+  },
+  {
+    "name": "禁漫天堂",
+    "key": "jm",
+    "version": "1.4.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/jm.js",
+    "fileName": "jm.js",
+    "description": "禁漫天堂 (R18), 不能使用時請嘗試切換分流"
+  },
+  {
+    "name": "hitomi.la",
+    "key": "hitomi",
+    "version": "1.1.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hitomi.js",
+    "fileName": "hitomi.js",
+    "description": "hitomi.la (R18)"
+  },
+  {
+    "name": "H-Comic",
+    "key": "hcomic",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hcomic.js",
+    "fileName": "hcomic.js",
+    "description": "H-Comic (R18)"
+  },
+  {
+    "name": "18漫画",
+    "key": "mh18",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh18.js",
+    "fileName": "mh18.js",
+    "description": "18漫画 (R18)"
+  },
+  {
+    "name": "热辣漫画",
+    "key": "hot_manga",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hot_manga.js",
+    "fileName": "hot_manga.js",
+    "description": "热辣漫画 (R18)"
+  },
+  {
+    "name": "天天看漫画",
+    "key": "ttkmh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ttkmh.js",
+    "fileName": "ttkmh.js",
+    "description": "天天看漫画 (ttkmh)"
+  },
+  {
+    "name": "大树漫画",
+    "key": "dashumanhua",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dashumanhua.js",
+    "fileName": "dashumanhua.js",
+    "description": "大树漫画 (dashumanhua)"
+  },
+  {
+    "name": "漫画鱼",
+    "key": "manhuayu",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/manhuayu.js",
+    "fileName": "manhuayu.js",
+    "description": "漫画鱼 (manhuayu)"
+  },
+  {
+    "name": "入漫画",
+    "key": "rumanhua",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/rumanhua.js",
+    "fileName": "rumanhua.js",
+    "description": "入漫画 (rumanhua)"
+  },
+  {
+    "name": "扑飞漫画",
+    "key": "pufeimh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/pufeimh.js",
+    "fileName": "pufeimh.js",
+    "description": "扑飞漫画 (pufeimh)"
+  },
+  {
+    "name": "好多漫画",
+    "key": "haoduoman2",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/haoduoman2.js",
+    "fileName": "haoduoman2.js",
+    "description": "好多漫画 (haoduoman) - 新版"
+  },
+  {
+    "name": "包子漫画",
+    "key": "baozi2",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/baozi2.js",
+    "fileName": "baozi2.js",
+    "description": "包子漫画 (baozi) - 新版"
+  },
+  {
+    "name": "漫画柜繁体",
+    "key": "manhuaguitw",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/manhuaguitw.js",
+    "fileName": "manhuaguitw.js",
+    "description": "漫画柜繁体 (manhuagui tw)"
+  },
+  {
+    "name": "咪咕动漫",
+    "key": "migudm",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/migudm.js",
+    "fileName": "migudm.js",
+    "description": "咪咕动漫 (migudm)"
+  },
+  {
+    "name": "动漫之家",
+    "key": "dmzj",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dmzj.js",
+    "fileName": "dmzj.js",
+    "description": "动漫之家 (dmzj)"
+  },
+  {
+    "name": "古风漫画",
+    "key": "gufengmh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/gufengmh.js",
+    "fileName": "gufengmh.js",
+    "description": "古风漫画 (gufengmh)"
+  },
+  {
+    "name": "有妖气",
+    "key": "u17",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/u17.js",
+    "fileName": "u17.js",
+    "description": "有妖气 (u17)"
+  },
+  {
+    "name": "MangaDex",
+    "key": "mangadex2",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mangadex2.js",
+    "fileName": "mangadex2.js",
+    "description": "MangaDex (需登录)"
+  },
+  {
+    "name": "Komiic",
+    "key": "komiic2",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/komiic2.js",
+    "fileName": "komiic2.js",
+    "description": "Komiic (JS渲染)"
+  },
+  {
+    "name": "ACG456",
+    "key": "acg456",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/acg456.js",
+    "fileName": "acg456.js",
+    "description": "ACG456 (acg456)"
+  },
+  {
+    "name": "ACGN漫画",
+    "key": "acgncc",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/acgncc.js",
+    "fileName": "acgncc.js",
+    "description": "ACGN漫画 (acgncc)"
+  },
+  {
+    "name": "哔哩哔哩漫画",
+    "key": "bilimanga",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/bilimanga.js",
+    "fileName": "bilimanga.js",
+    "description": "哔哩哔哩漫画 (bilimanga)"
+  },
+  {
+    "name": "布卡漫画",
+    "key": "bukamh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/bukamh.js",
+    "fileName": "bukamh.js",
+    "description": "布卡漫画 (bukamh)"
+  },
+  {
+    "name": "CartoonMad",
+    "key": "cartoonmad",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/cartoonmad.js",
+    "fileName": "cartoonmad.js",
+    "description": "CartoonMad (cartoonmad)"
+  },
+  {
+    "name": "吹雪漫画",
+    "key": "chuixuemh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/chuixuemh.js",
+    "fileName": "chuixuemh.js",
+    "description": "吹雪漫画 (chuixuemh)"
+  },
+  {
+    "name": "吹妖漫画",
+    "key": "chuiyao",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/chuiyao.js",
+    "fileName": "chuiyao.js",
+    "description": "吹妖漫画 (chuiyao)"
+  },
+  {
+    "name": "大树漫画备用",
+    "key": "dashumanhua2",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dashumanhua2.js",
+    "fileName": "dashumanhua2.js",
+    "description": "大树漫画备用 (dashumanhua2)"
+  },
+  {
+    "name": "丁漫画",
+    "key": "dingmanhua",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dingmanhua.js",
+    "fileName": "dingmanhua.js",
+    "description": "丁漫画 (dingmanhua)"
+  },
+  {
+    "name": "Dogemanga",
+    "key": "dogemanga",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dogemanga.js",
+    "fileName": "dogemanga.js",
+    "description": "Dogemanga (dogemanga)"
+  },
+  {
+    "name": "读漫屋",
+    "key": "dumanwuorg",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dumanwuorg.js",
+    "fileName": "dumanwuorg.js",
+    "description": "读漫屋 (dumanwuorg)"
+  },
+  {
+    "name": "飞雪漫画",
+    "key": "feixuemh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/feixuemh.js",
+    "fileName": "feixuemh.js",
+    "description": "飞雪漫画 (feixuemh)"
+  },
+  {
+    "name": "FMH漫画",
+    "key": "fmh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/fmh.js",
+    "fileName": "fmh.js",
+    "description": "FMH漫画 (fmh)"
+  },
+  {
+    "name": "GamerSky",
+    "key": "gamersky",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/gamersky.js",
+    "fileName": "gamersky.js",
+    "description": "GamerSky (gamersky)"
+  },
+  {
+    "name": "国漫网",
+    "key": "guomanwang",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/guomanwang.js",
+    "fileName": "guomanwang.js",
+    "description": "国漫网 (guomanwang)"
+  },
+  {
+    "name": "韩话吧",
+    "key": "hanhuaba",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hanhuaba.js",
+    "fileName": "hanhuaba.js",
+    "description": "韩话吧 (hanhuaba)"
+  },
+  {
+    "name": "HHXXEE",
+    "key": "hhxxee",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hhxxee.js",
+    "fileName": "hhxxee.js",
+    "description": "HHXXEE (hhxxee)"
+  },
+  {
+    "name": "热辣漫画备用",
+    "key": "hotmanga",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hotmanga.js",
+    "fileName": "hotmanga.js",
+    "description": "热辣漫画备用 (hotmanga)"
+  },
+  {
+    "name": "爱看漫",
+    "key": "ikanman",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ikanman.js",
+    "fileName": "ikanman.js",
+    "description": "爱看漫 (ikanman)"
+  },
+  {
+    "name": "爱看漫繁体",
+    "key": "ikanmantw",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ikanmantw.js",
+    "fileName": "ikanmantw.js",
+    "description": "爱看漫繁体 (ikanmantw)"
+  },
+  {
+    "name": "极速漫画",
+    "key": "jisumh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/jisumh.js",
+    "fileName": "jisumh.js",
+    "description": "极速漫画 (jisumh)"
+  },
+  {
+    "name": "JPM1234",
+    "key": "jpm1234",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/jpm1234.js",
+    "fileName": "jpm1234.js",
+    "description": "JPM1234 (jpm1234)"
+  },
+  {
+    "name": "KL漫画",
+    "key": "klmanga",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/klmanga.js",
+    "fileName": "klmanga.js",
+    "description": "KL漫画 (klmanga)"
+  },
+  {
+    "name": "MangaRead",
+    "key": "mangaread",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mangaread.js",
+    "fileName": "mangaread.js",
+    "description": "MangaRead (mangaread)"
+  },
+  {
+    "name": "漫画DB",
+    "key": "manhuadb",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/manhuadb.js",
+    "fileName": "manhuadb.js",
+    "description": "漫画DB (manhuadb)"
+  },
+  {
+    "name": "漫画台",
+    "key": "manhuatai",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/manhuatai.js",
+    "fileName": "manhuatai.js",
+    "description": "漫画台 (manhuatai)"
+  },
+  {
+    "name": "360漫画",
+    "key": "mh360",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh360.js",
+    "fileName": "mh360.js",
+    "description": "360漫画 (mh360)"
+  },
+  {
+    "name": "MH57",
+    "key": "mh57",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh57.js",
+    "fileName": "mh57.js",
+    "description": "MH57 (mh57)"
+  },
+  {
+    "name": "522漫画",
+    "key": "mh522",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh522.js",
+    "fileName": "mh522.js",
+    "description": "522漫画 (mh522)"
+  },
+  {
+    "name": "92漫画",
+    "key": "mh92",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh92.js",
+    "fileName": "mh92.js",
+    "description": "92漫画 (mh92)"
+  },
+  {
+    "name": "快看漫画",
+    "key": "mkzhan",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mkzhan.js",
+    "fileName": "mkzhan.js",
+    "description": "快看漫画 (mkzhan)"
+  },
+  {
+    "name": "MKZHANW",
+    "key": "mkzhanw",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mkzhanw.js",
+    "fileName": "mkzhanw.js",
+    "description": "MKZHANW (mkzhanw)"
+  },
+  {
+    "name": "梦游漫画",
+    "key": "mumumh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mumumh.js",
+    "fileName": "mumumh.js",
+    "description": "梦游漫画 (mumumh)"
+  },
+  {
+    "name": "MX趣",
+    "key": "mxqf",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mxqf.js",
+    "fileName": "mxqf.js",
+    "description": "MX趣 (mxqf)"
+  },
+  {
+    "name": "奇漫画",
+    "key": "qimanwu",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/qimanwu.js",
+    "fileName": "qimanwu.js",
+    "description": "奇漫画 (qimanwu)"
+  },
+  {
+    "name": "奇妙漫画",
+    "key": "qimiaomh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/qimiaomh.js",
+    "fileName": "qimiaomh.js",
+    "description": "奇妙漫画 (qimiaomh)"
+  },
+  {
+    "name": "Rou韩漫",
+    "key": "roumh",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/roumh.js",
+    "fileName": "roumh.js",
+    "description": "Rou韩漫 (roumh)"
+  },
+  {
+    "name": "SF轻小说",
+    "key": "sfacg",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/sfacg.js",
+    "fileName": "sfacg.js",
+    "description": "SF轻小说 (sfacg)"
+  },
+  {
+    "name": "西西漫画",
+    "key": "sisimanhua",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/sisimanhua.js",
+    "fileName": "sisimanhua.js",
+    "description": "西西漫画 (sisimanhua)"
+  },
+  {
+    "name": "搜动漫",
+    "key": "soudongman",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/soudongman.js",
+    "fileName": "soudongman.js",
+    "description": "搜动漫 (soudongman)"
+  },
+  {
+    "name": "仙漫网",
+    "key": "xianman123",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/xianman123.js",
+    "fileName": "xianman123.js",
+    "description": "仙漫网 (xianman123)"
+  },
+  {
+    "name": "X漫画备用",
+    "key": "xmanhua2",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/xmanhua2.js",
+    "fileName": "xmanhua2.js",
+    "description": "X漫画备用 (xmanhua2)"
+  },
+  {
+    "name": "一本漫画",
+    "key": "yibenmanhua",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/yibenmanhua.js",
+    "fileName": "yibenmanhua.js",
+    "description": "一本漫画 (yibenmanhua)"
+  },
+  {
+    "name": "优动漫",
+    "key": "youdm",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/youdm.js",
+    "fileName": "youdm.js",
+    "description": "优动漫 (youdm)"
+  },
+  {
+    "name": "YY漫画备用",
+    "key": "yymanhua2",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/yymanhua2.js",
+    "fileName": "yymanhua2.js",
+    "description": "YY漫画备用 (yymanhua2)"
+  },
+  {
+    "name": "知音漫客",
+    "key": "zymk",
+    "version": "1.0.0",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/zymk.js",
+    "fileName": "zymk.js",
+    "description": "知音漫客 (zymk)"
+  }
+]
