@@ -346,7 +346,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.7";
+    version = "1.1.8";
 
     minAppVersion = "1.4.6";
 
@@ -440,10 +440,9 @@ class MyComic extends ComicSource {
             load: async () => {
                 const resp = await fetchWithCFCheck(BASE_URL);
                 if (resp.status !== 200) throw "HTTP " + resp.status;
+                const html = resp.body;
                 const headerLink = (resp.headers && (resp.headers.link || resp.headers.Link || "")) + "";
-                const coversMap = extractCoversFromText(headerLink + " " + resp.body);
-                const doc = new HtmlDocument(resp.body);
-                const parts = {};
+                const coversMap = extractCoversFromText(headerLink + " " + html);
 
                 // 单行4条：保证每个分区为 8 条 (2行) 或 12 条 (3行)，避免单数落单
                 function fitToRow(list, max = 12) {
@@ -454,94 +453,98 @@ class MyComic extends ComicSource {
                     return list;
                 }
 
-                // 策略 1：检查 4 个分区网格容器 (每个分区通常为 8~16 条)
-                const candidateGrids = doc.querySelectorAll("div.grid, div[class*='grid'], ul.grid");
-                const sectionGrids = [];
-                for (let i = 0; i < candidateGrids.length; i++) {
-                    const list = parseComicList(candidateGrids[i], true, coversMap);
-                    if (list.length >= 8 && list.length <= 16) {
-                        sectionGrids.push(list);
+                /**
+                 * Parse comic cards directly from a section's HTML chunk
+                 * Extracts clean comic cards without contaminating from text rank tables
+                 * @param {string} chunk
+                 * @returns {Comic[]}
+                 */
+                function parseSectionCards(chunk) {
+                    if (!chunk) return [];
+                    const list = [];
+                    const linkRegex = /<a\s+href="https:\/\/mycomic\.com\/cn\/comics\/(\d+)"([\s\S]*?)<\/a>/g;
+                    let lm;
+                    const seen = new Set();
+                    while ((lm = linkRegex.exec(chunk)) !== null) {
+                        const id = lm[1];
+                        if (seen.has(id)) continue;
+                        seen.add(id);
+
+                        const inner = lm[2];
+                        const imgM = /<img[^>]*>/i.exec(inner);
+                        let cover = "";
+                        let title = "";
+                        if (imgM) {
+                            const dataSrcM = /data-src="([^"]+)"/i.exec(imgM[0]);
+                            const srcM = /src="([^"]+)"/i.exec(imgM[0]);
+                            const altM = /alt="([^"]+)"/i.exec(imgM[0]);
+                            if (dataSrcM) cover = dataSrcM[1];
+                            else if (srcM && !srcM[1].startsWith("data:")) cover = srcM[1];
+                            if (altM) title = altM[1];
+                        }
+
+                        if (!cover && coversMap.has(id)) {
+                            cover = coversMap.get(id);
+                        }
+                        if (cover) {
+                            cover = normalizeImageUrl(cover);
+                        }
+
+                        if (!title) {
+                            const after = chunk.slice(lm.index + lm[0].length, lm.index + lm[0].length + 400);
+                            const titleM = /<div[^>]*data-flux-subheading[^>]*>\s*([\s\S]*?)\s*<\/div>/i.exec(after);
+                            if (titleM) title = titleM[1].trim();
+                        }
+
+                        let desc = "";
+                        const descM = /<div[^>]*class="[^"]*pb-3[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/div>/i.exec(inner);
+                        if (descM) desc = descM[1].replace(/\[完\]/g, "[完]").trim();
+
+                        list.push(new Comic({
+                            id: id,
+                            title: title || id,
+                            cover: cover,
+                            description: desc,
+                            language: "zh-Hans",
+                        }));
                     }
+                    return list;
                 }
 
-                if (sectionGrids.length === 4) {
-                    parts[""] = fitToRow(sectionGrids[0]);
-                    parts["推荐给你"] = fitToRow(sectionGrids[1]);
-                    parts["最近更新"] = fitToRow(sectionGrids[2]);
-                    parts["最新上架"] = fitToRow(sectionGrids[3]);
+                // Locate section boundaries in the HTML
+                const pRec = html.indexOf("推荐给你");
+                const firstUpdate = html.indexOf("最近更新");
+                const pUpdateGrid = firstUpdate !== -1 ? html.indexOf("最近更新", firstUpdate + 10) : -1;
+                const pLatestGrid = html.indexOf("最新上架");
+                const pFooter = html.indexOf("<footer>") !== -1 ? html.indexOf("<footer>") : html.length;
+
+                const defaultChunk = pRec !== -1 ? html.slice(0, pRec) : html.slice(0, firstUpdate !== -1 ? firstUpdate : html.length);
+                const updateChunk = (pUpdateGrid !== -1 && pLatestGrid !== -1) ? html.slice(pUpdateGrid, pLatestGrid) : "";
+                const latestChunk = pLatestGrid !== -1 ? html.slice(pLatestGrid, pFooter) : "";
+
+                const defaultList = parseSectionCards(defaultChunk);
+                const updateList = parseSectionCards(updateChunk);
+                const latestList = parseSectionCards(latestChunk);
+
+                const parts = {};
+                if (defaultList.length > 0) {
+                    parts[""] = fitToRow(defaultList);
+                }
+                if (updateList.length > 0) {
+                    parts["最近更新"] = fitToRow(updateList);
+                }
+                if (latestList.length > 0) {
+                    parts["最新上架"] = fitToRow(latestList);
+                }
+
+                // If any section is empty, fallback to DOM parseComicList
+                if (!parts[""] || !parts["最近更新"] || !parts["最新上架"]) {
+                    const doc = new HtmlDocument(html);
+                    const allCards = parseAllComicCards(doc, coversMap);
+                    if (!parts[""]) parts[""] = fitToRow(allCards.slice(0, 12));
                     doc.dispose();
-                    return parts;
                 }
 
-                // 策略 2：通过标题关键字定位分区
-                const allHeadings = doc.querySelectorAll("h1, h2, h3, h4, .text-xl, .text-lg, .font-bold");
-                let recComics = [];
-                let updateComics = [];
-                let latestComics = [];
-
-                function getComicsNearHeading(h) {
-                    if (!h) return [];
-                    let p = h.parent;
-                    let list = p ? parseComicList(p, true, coversMap) : [];
-                    if (list.length >= 6) return list;
-                    let next = p ? p.nextElementSibling : null;
-                    list = next ? parseComicList(next, true, coversMap) : [];
-                    if (list.length >= 6) return list;
-                    next = h.nextElementSibling;
-                    list = next ? parseComicList(next, true, coversMap) : [];
-                    if (list.length >= 6) return list;
-                    let gp = p ? p.parent : null;
-                    list = gp ? parseComicList(gp, true, coversMap) : [];
-                    if (list.length >= 6) return list;
-                    return [];
-                }
-
-                for (let i = 0; i < allHeadings.length; i++) {
-                    const text = allHeadings[i].text.trim();
-                    if (text.indexOf("推荐给你") !== -1 && recComics.length === 0) {
-                        recComics = getComicsNearHeading(allHeadings[i]);
-                    } else if (text.indexOf("最近更新") !== -1 && updateComics.length === 0) {
-                        updateComics = getComicsNearHeading(allHeadings[i]);
-                    } else if (text.indexOf("最新上架") !== -1 && latestComics.length === 0) {
-                        latestComics = getComicsNearHeading(allHeadings[i]);
-                    }
-                }
-
-                const allCards = parseAllComicCards(doc, coversMap);
-
-                if (recComics.length > 0 && updateComics.length > 0 && latestComics.length > 0) {
-                    parts[""] = fitToRow(allCards);
-                    parts["推荐给你"] = fitToRow(recComics);
-                    parts["最近更新"] = fitToRow(updateComics);
-                    parts["最新上架"] = fitToRow(latestComics);
-                    doc.dispose();
-                    return parts;
-                }
-
-                // 策略 3 (保底)：按 DOM 顺序拆分首页漫画到 4 个分区
-                if (allCards.length >= 48) {
-                    parts[""] = fitToRow(allCards.slice(0, 12));
-                    parts["推荐给你"] = fitToRow(allCards.slice(12, 24));
-                    parts["最近更新"] = fitToRow(allCards.slice(24, 36));
-                    parts["最新上架"] = fitToRow(allCards.slice(36, 48));
-                } else if (allCards.length >= 32) {
-                    // 若总共约 32~36 条 (例如移动端 9 条 x 4)，每个分区保证 8 条整行
-                    const size = Math.floor(allCards.length / 4);
-                    parts[""] = fitToRow(allCards.slice(0, size));
-                    parts["推荐给你"] = fitToRow(allCards.slice(size, size * 2));
-                    parts["最近更新"] = fitToRow(allCards.slice(size * 2, size * 3));
-                    parts["最新上架"] = fitToRow(allCards.slice(size * 3, size * 4));
-                } else if (allCards.length >= 16) {
-                    const size = Math.floor(allCards.length / 4);
-                    parts[""] = fitToRow(allCards.slice(0, size));
-                    parts["推荐给你"] = fitToRow(allCards.slice(size, size * 2));
-                    parts["最近更新"] = fitToRow(allCards.slice(size * 2, size * 3));
-                    parts["最新上架"] = fitToRow(allCards.slice(size * 3));
-                } else {
-                    parts[""] = fitToRow(allCards);
-                }
-
-                doc.dispose();
                 return parts;
             },
         },
