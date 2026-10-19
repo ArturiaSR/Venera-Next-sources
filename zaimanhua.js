@@ -4,7 +4,7 @@ class Zaimanhua extends ComicSource {
   key = "zaimanhua";
   version = "1.0.2";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/zaimanhua.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/zaimanhua.js";
 
   settings = {
     domains: {

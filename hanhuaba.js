@@ -4,7 +4,7 @@ class Hanhuaba extends ComicSource {
   key = "hanhuaba";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/hanhuaba.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hanhuaba.js";
 
   settings = {
     domains: {

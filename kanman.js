@@ -4,7 +4,7 @@ class Kanman extends ComicSource {
     key = "kanman";
     version = "1.0.1";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/kanman.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/kanman.js";
 
   settings = {
     domains: {

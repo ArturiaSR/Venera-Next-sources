@@ -4,7 +4,7 @@ class Sfacg extends ComicSource {
   key = "sfacg";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/sfacg.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/sfacg.js";
 
   settings = {
     domains: {

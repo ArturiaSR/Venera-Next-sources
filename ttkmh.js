@@ -4,7 +4,7 @@ class Ttkmh extends ComicSource {
   key = "ttkmh";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/ttkmh.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ttkmh.js";
 
   settings = {
     domains: {

@@ -4,7 +4,7 @@ class Manhuadb extends ComicSource {
   key = "manhuadb";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/manhuadb.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/manhuadb.js";
 
   settings = {
     domains: {

@@ -4,7 +4,7 @@ class Xianman123 extends ComicSource {
   key = "xianman123";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/xianman123.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/xianman123.js";
 
   settings = {
     domains: {

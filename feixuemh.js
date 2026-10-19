@@ -4,7 +4,7 @@ class Feixuemh extends ComicSource {
   key = "feixuemh";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/feixuemh.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/feixuemh.js";
 
   settings = {
     domains: {

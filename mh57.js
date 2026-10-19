@@ -4,7 +4,7 @@ class Mh57 extends ComicSource {
   key = "mh57";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/mh57.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh57.js";
 
   settings = {
     domains: {

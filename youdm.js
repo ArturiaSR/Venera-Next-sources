@@ -4,7 +4,7 @@ class Youdm extends ComicSource {
   key = "youdm";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/youdm.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/youdm.js";
 
   settings = {
     domains: {

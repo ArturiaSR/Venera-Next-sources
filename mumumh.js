@@ -4,7 +4,7 @@ class Mumumh extends ComicSource {
   key = "mumumh";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/mumumh.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mumumh.js";
 
   settings = {
     domains: {

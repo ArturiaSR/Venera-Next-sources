@@ -4,7 +4,7 @@ class Xmanhua2 extends ComicSource {
   key = "xmanhua2";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/xmanhua2.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/xmanhua2.js";
 
   settings = {
     domains: {

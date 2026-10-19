@@ -4,7 +4,7 @@ class Dashumanhua extends ComicSource {
   key = "dashumanhua";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/dashumanhua.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dashumanhua.js";
 
   settings = {
     domains: {

@@ -4,7 +4,7 @@ class DM5 extends ComicSource {
   key = "dm5";
   version = "1.0.1";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/dm5.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/dm5.js";
 
   settings = {
     domains: {

@@ -13,7 +13,7 @@ class BainianMH extends ComicSource {
     key = "bainianmh";
     version = "1.0.0";
     minAppVersion = "1.6.0";
-    url = "https://cdn.jsdelivr.net/gh/yourname/venera-sources@main/bainianmh.js";
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/bainianmh.js";
 
     settings = {
         domain: {

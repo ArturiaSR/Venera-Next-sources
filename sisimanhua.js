@@ -4,7 +4,7 @@ class Sisimanhua extends ComicSource {
   key = "sisimanhua";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/sisimanhua.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/sisimanhua.js";
 
   settings = {
     domains: {

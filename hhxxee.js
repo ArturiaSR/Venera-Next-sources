@@ -4,7 +4,7 @@ class Hhxxee extends ComicSource {
   key = "hhxxee";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/hhxxee.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hhxxee.js";
 
   settings = {
     domains: {

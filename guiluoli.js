@@ -4,7 +4,7 @@ class Guiluoli extends ComicSource {
   key = "guiluoli";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/guiluoli.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/guiluoli.js";
 
   settings = {
     domains: {

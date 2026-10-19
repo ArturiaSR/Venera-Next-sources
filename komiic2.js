@@ -4,7 +4,7 @@ class Komiic2 extends ComicSource {
   key = "komiic2";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/komiic2.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/komiic2.js";
 
   settings = {
     domains: {

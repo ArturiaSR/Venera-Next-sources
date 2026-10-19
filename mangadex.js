@@ -4,7 +4,7 @@ class MangaDex extends ComicSource {
   key = "mangadex";
   version = "1.2.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/mangadex.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mangadex.js";
 
   apiUrl = "https://api.mangadex.org";
 

@@ -4,7 +4,7 @@ class U17 extends ComicSource {
   key = "u17";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/u17.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/u17.js";
 
   settings = {
     domains: {

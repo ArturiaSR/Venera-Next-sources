@@ -4,7 +4,7 @@ class Mh92 extends ComicSource {
   key = "mh92";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/mh92.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mh92.js";
 
   settings = {
     domains: {

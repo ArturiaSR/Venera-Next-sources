@@ -4,7 +4,7 @@ class Roumh extends ComicSource {
   key = "roumh";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/roumh.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/roumh.js";
 
   settings = {
     domains: {

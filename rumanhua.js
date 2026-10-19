@@ -4,7 +4,7 @@ class Rumanhua extends ComicSource {
   key = "rumanhua";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/rumanhua.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/rumanhua.js";
 
   settings = {
     domains: {

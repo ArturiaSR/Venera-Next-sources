@@ -4,7 +4,7 @@ class Colamanga extends ComicSource {
   key = "colamanga";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/colamanga.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/colamanga.js";
 
   settings = {
     domains: {

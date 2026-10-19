@@ -4,7 +4,7 @@ class YKMHSource extends ComicSource {
     key = "ykmh"
     version = "1.0.0"
     minAppVersion = "1.4.0"
-    url = "https://cdn.jsdelivr.net/gh/venera-app/venera-configs@main/ykmh.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ykmh.js"
 
     // 域名选择设置
     settings = {

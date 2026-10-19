@@ -4,7 +4,7 @@ class Hotmanga extends ComicSource {
   key = "hotmanga";
   version = "1.0.0";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/Wjavan/venera-next-sources@main/hotmanga.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hotmanga.js";
 
   settings = {
     domains: {
