@@ -184,14 +184,14 @@ function parseComicList(doc) {
 }
 
 class JComic extends ComicSource {
-  name = "jcomic.net";
+  name = "JComic";
   key = "jcomic";
 
-  version = "1.0.2";
+  version = "1.0.3";
   minAppVersion = "1.4.6";
 
   url =
-    "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jcomic-v1.0.2/jcomic.js";
+    "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jcomic-v1.0.3/jcomic.js";
 
   _buildUrl(path) {
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
@@ -218,7 +218,7 @@ class JComic extends ComicSource {
   /// explore
   explore = [
     {
-      title: "最近更新",
+      title: "JComic",
       type: "multiPageComicList",
       load: async (page) => {
         if (!page) page = 1;
@@ -240,34 +240,11 @@ class JComic extends ComicSource {
         }
       },
     },
-    {
-      title: "隨機",
-      type: "multiPageComicList",
-      load: async (page) => {
-        if (!page) page = 1;
-        const cat = "隨機";
-        const encoded = encodeURIComponent(cat);
-        const path = page === 1 ? `/cat/${encoded}` : `/cat/${encoded}/${page}`;
-        const url = this._buildUrl(path);
-
-        const resp = await fetchWithCFCheck(url);
-        if (resp.status !== 200) throw new Error(resp.status);
-
-        const doc = new HtmlDocument(resp.body);
-        try {
-          const comics = parseComicList(doc);
-          const maxPage = parseMaxPage(doc);
-          return { comics, maxPage };
-        } finally {
-          doc.dispose();
-        }
-      },
-    },
   ];
 
   // 分类列表
   category = {
-    title: "jcomic.net",
+    title: "JComic",
     parts: [
       {
         name: "分類",
