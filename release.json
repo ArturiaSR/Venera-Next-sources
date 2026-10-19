@@ -30,5 +30,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@v1.1.9/mycomic.js",
     "fileName": "mycomic.js",
     "description": "MYCOMIC (mycomic)"
+  },
+  {
+    "name": "拷贝漫画",
+    "key": "copy_manga",
+    "version": "1.4.3",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.3/copy_manga.js",
+    "fileName": "copy_manga.js",
+    "description": "拷贝漫画 (copy_manga)"
   }
 ]
