@@ -346,7 +346,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.8";
+    version = "1.1.9";
 
     minAppVersion = "1.4.6";
 
@@ -682,13 +682,15 @@ class MyComic extends ComicSource {
                 "-views-历史排行",
                 "-week-週排行",
                 "-month-月排行",
+                "-update-最近更新",
+                "-id-最新上架",
             ],
             load: async (option, page) => {
                 if (!page) page = 1;
                 const sort = option || "-views";
                 const url =
                     BASE_URL +
-                    "/rank?sort=" +
+                    "/comics?sort=" +
                     sort +
                     (page > 1 ? "&page=" + page : "");
                 const resp = await fetchWithCFCheck(url);
