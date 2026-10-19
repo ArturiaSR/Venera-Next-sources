@@ -177,7 +177,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.0";
+    version = "1.1.1";
 
     minAppVersion = "1.4.6";
 
@@ -263,48 +263,40 @@ class MyComic extends ComicSource {
     };
 
     // ==================== Explore ====================
-
+    // 单一首页探索页 (类似 baihehui.js)，展示网站首页的聚合推荐数据
     explore = [
         {
-            title: "最新上架",
-            type: "multiPageComicList",
-            load: async (page) => {
-                if (!page) page = 1;
-                const url = buildComicsUrl(page, "-id");
-                const resp = await fetchWithCFCheck(url);
+            title: "MYCOMIC",
+            type: "singlePageWithMultiPart",
+            load: async () => {
+                const resp = await fetchWithCFCheck(BASE_URL);
                 if (resp.status !== 200) throw "HTTP " + resp.status;
                 const doc = new HtmlDocument(resp.body);
-                const comics = parseComicList(doc);
-                const maxPage = parseMaxPage(resp.body);
-                return { comics, maxPage };
-            },
-        },
-        {
-            title: "最近更新",
-            type: "multiPageComicList",
-            load: async (page) => {
-                if (!page) page = 1;
-                const url = buildComicsUrl(page, "-update");
-                const resp = await fetchWithCFCheck(url);
-                if (resp.status !== 200) throw "HTTP " + resp.status;
-                const doc = new HtmlDocument(resp.body);
-                const comics = parseComicList(doc);
-                const maxPage = parseMaxPage(resp.body);
-                return { comics, maxPage };
-            },
-        },
-        {
-            title: "最高人气",
-            type: "multiPageComicList",
-            load: async (page) => {
-                if (!page) page = 1;
-                const url = buildComicsUrl(page, "-views");
-                const resp = await fetchWithCFCheck(url);
-                if (resp.status !== 200) throw "HTTP " + resp.status;
-                const doc = new HtmlDocument(resp.body);
-                const comics = parseComicList(doc);
-                const maxPage = parseMaxPage(resp.body);
-                return { comics, maxPage };
+                const parts = {};
+
+                // 尝试抓取首页带有标题的各个区块
+                const sections = doc.querySelectorAll("section, div.my-6, div.my-8, div.mb-8, div.space-y-6 > div, div.space-y-8 > div");
+                for (const sec of sections) {
+                    const titleEl = sec.querySelector("h2, h3, .font-bold");
+                    const title = titleEl ? titleEl.text.trim() : "";
+                    if (title) {
+                        const comics = parseComicList(sec);
+                        if (comics.length > 0) {
+                            parts[title] = comics;
+                        }
+                    }
+                }
+
+                // 若未按分组结构匹配到，则将首页所有漫画放入「首页推荐」
+                if (Object.keys(parts).length === 0) {
+                    const comics = parseComicList(doc);
+                    if (comics.length > 0) {
+                        parts["首页推荐"] = comics;
+                    }
+                }
+
+                doc.dispose();
+                return parts;
             },
         },
     ];
