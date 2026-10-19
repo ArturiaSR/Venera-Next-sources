@@ -86,6 +86,44 @@ function escapeRegex(s) {
 }
 
 /**
+ * Safely extract cover image URL from an HtmlElement
+ * @param {HtmlElement|null} img
+ * @returns {string}
+ */
+function extractCoverFromImg(img) {
+    if (!img) return "";
+    let cover = img.attributes["data-src"] ||
+        img.attributes["data-cfsrc"] ||
+        img.attributes["data-original"] ||
+        img.attributes["data-lazy-src"] ||
+        "";
+    if (!cover) {
+        let src = img.attributes["src"] || "";
+        if (src && !src.startsWith("data:") && src.indexOf("placeholder") === -1 && src.indexOf("loading") === -1) {
+            cover = src;
+        }
+    }
+    if (!cover) {
+        let srcset = img.attributes["data-srcset"] || img.attributes["srcset"] || "";
+        if (srcset) {
+            let first = srcset.split(",")[0].trim().split(" ")[0];
+            if (first && !first.startsWith("data:")) cover = first;
+        }
+    }
+    if (cover) {
+        cover = cover.replace(/&amp;/g, "&").trim();
+        if (cover.startsWith("//")) {
+            cover = "https:" + cover;
+        } else if (cover.startsWith("/") && (cover.indexOf("biccam.com") !== -1 || cover.indexOf("/comics/") !== -1 || cover.indexOf("/chapters/") !== -1)) {
+            cover = CDN_URL + cover;
+        } else if (cover.startsWith("/")) {
+            cover = "https://mycomic.com" + cover;
+        }
+    }
+    return cover;
+}
+
+/**
  * Parse comic card from an <a> element
  * @param {HtmlElement} a
  * @returns {Comic|null}
@@ -98,34 +136,15 @@ function parseComicCard(a) {
 
     // Try finding img inside a, or as sibling/parent
     let img = a.querySelector("img");
-    if (!img && a.parent) {
+    let cover = extractCoverFromImg(img);
+
+    if (!cover && a.parent) {
         img = a.parent.querySelector("img");
+        cover = extractCoverFromImg(img);
     }
-    if (!img && a.parent && a.parent.parent) {
+    if (!cover && a.parent && a.parent.parent) {
         img = a.parent.parent.querySelector("img");
-    }
-
-    let cover = "";
-    if (img) {
-        cover = img.attributes["data-src"] ||
-            img.attributes["data-original"] ||
-            img.attributes["data-lazy-src"] ||
-            img.attributes["src"] ||
-            "";
-        if (cover.startsWith("data:")) {
-            cover = img.attributes["data-src"] ||
-                img.attributes["data-original"] ||
-                img.attributes["data-lazy-src"] ||
-                "";
-        }
-    }
-
-    if (!cover) {
-        cover = CDN_URL + "/comics/" + id + ".jpg";
-    } else if (cover.startsWith("//")) {
-        cover = "https:" + cover;
-    } else if (cover.startsWith("/")) {
-        cover = "https://mycomic.com" + cover;
+        cover = extractCoverFromImg(img);
     }
 
     let title = img ? (img.attributes["alt"] || "").trim() : "";
@@ -241,7 +260,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.3";
+    version = "1.1.4";
 
     minAppVersion = "1.4.6";
 
@@ -648,9 +667,50 @@ class MyComic extends ComicSource {
 
             const description = getMetaContent(html, "description") || "";
             const author = getMetaContent(html, "author") || "";
-            const cover =
-                getMetaContent(html, "og:image") ||
-                CDN_URL + "/comics/" + id + ".jpg";
+            // 1. Try meta tags: og:image, twitter:image
+            let cover = getMetaContent(html, "og:image") ||
+                        getMetaContent(html, "twitter:image") || "";
+
+            // 2. Try DOM img on the detail page (essential for "通过URL获取")
+            if (!cover || cover.indexOf("biccam.com") === -1) {
+                const imgs = doc.querySelectorAll("img");
+                for (let i = 0; i < imgs.length; i++) {
+                    const c = extractCoverFromImg(imgs[i]);
+                    if (c && c.indexOf("biccam.com/comics/") !== -1) {
+                        cover = c;
+                        break;
+                    }
+                }
+                if (!cover) {
+                    for (let i = 0; i < imgs.length; i++) {
+                        const c = extractCoverFromImg(imgs[i]);
+                        if (c && c.indexOf("/comics/") !== -1) {
+                            cover = c;
+                            break;
+                        }
+                    }
+                }
+                if (!cover) {
+                    const coverContainer = doc.querySelector("div[class*='cover'], div[class*='poster'], div[class*='thumb'], div[class*='image']");
+                    if (coverContainer) {
+                        const cImg = coverContainer.querySelector("img");
+                        if (cImg) {
+                            cover = extractCoverFromImg(cImg);
+                        }
+                    }
+                }
+            }
+
+            if (cover) {
+                cover = cover.replace(/&amp;/g, "&").trim();
+                if (cover.startsWith("//")) {
+                    cover = "https:" + cover;
+                } else if (cover.startsWith("/") && (cover.indexOf("biccam.com") !== -1 || cover.indexOf("/comics/") !== -1)) {
+                    cover = CDN_URL + cover;
+                } else if (cover.startsWith("/")) {
+                    cover = "https://mycomic.com" + cover;
+                }
+            }
             const keywords = getMetaContent(html, "keywords") || "";
 
             // Parse tags from filter links on the page
@@ -780,8 +840,17 @@ class MyComic extends ComicSource {
         },
 
         onImageLoad: (url, comicId, epId) => {
+            if (!url) return null;
+            let finalUrl = url.replace(/&amp;/g, "&").trim();
+            if (finalUrl.startsWith("//")) {
+                finalUrl = "https:" + finalUrl;
+            } else if (finalUrl.startsWith("/") && (finalUrl.indexOf("biccam.com") !== -1 || finalUrl.indexOf("/chapters/") !== -1 || finalUrl.indexOf("/comics/") !== -1)) {
+                finalUrl = CDN_URL + finalUrl;
+            } else if (finalUrl.startsWith("/")) {
+                finalUrl = "https://mycomic.com" + finalUrl;
+            }
             return {
-                url: url,
+                url: finalUrl,
                 headers: {
                     "Referer": REFERER,
                     "User-Agent": UA,
@@ -795,8 +864,17 @@ class MyComic extends ComicSource {
         },
 
         onThumbnailLoad: (url) => {
+            if (!url) return null;
+            let finalUrl = url.replace(/&amp;/g, "&").trim();
+            if (finalUrl.startsWith("//")) {
+                finalUrl = "https:" + finalUrl;
+            } else if (finalUrl.startsWith("/") && (finalUrl.indexOf("biccam.com") !== -1 || finalUrl.indexOf("/comics/") !== -1 || finalUrl.indexOf("/chapters/") !== -1)) {
+                finalUrl = CDN_URL + finalUrl;
+            } else if (finalUrl.startsWith("/")) {
+                finalUrl = "https://mycomic.com" + finalUrl;
+            }
             return {
-                url: url,
+                url: finalUrl,
                 headers: {
                     "Referer": REFERER,
                     "User-Agent": UA,
@@ -819,9 +897,10 @@ class MyComic extends ComicSource {
         },
 
         link: {
-            domains: ["mycomic.com"],
+            domains: ["mycomic.com", "m.mycomic.com", "www.mycomic.com"],
             linkToId: (url) => {
-                const m = /https?:\/\/(?:www\.)?mycomic\.com\/(?:cn\/)?comics\/(\d+)/.exec(
+                if (!url) return null;
+                const m = /(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?mycomic\.com\/(?:cn\/)?comics\/(\d+)/i.exec(
                     url
                 );
                 if (!m) return null;
