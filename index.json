@@ -16,14 +16,6 @@
     "description": "GoDa漫画 (goda)"
   },
   {
-    "name": "嗨皮漫画",
-    "key": "happy",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/happy.js",
-    "fileName": "happy.js",
-    "description": "嗨皮漫画 (happy)"
-  },
-  {
     "name": "JComic",
     "key": "jcomic",
     "version": "1.0.0",
@@ -374,14 +366,6 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/haoduoman2.js",
     "fileName": "haoduoman2.js",
     "description": "好多漫画 (haoduoman) - 新版"
-  },
-  {
-    "name": "嗨皮漫画",
-    "key": "happy2",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/happy2.js",
-    "fileName": "happy2.js",
-    "description": "嗨皮漫画 (happy) - 新版"
   },
   {
     "name": "包子漫画",
