@@ -1,13 +1,5 @@
 [
   {
-    "name": "百年漫画",
-    "key": "bainianmh",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/bainianmh.js",
-    "fileName": "bainianmh.js",
-    "description": "百年漫画 (bainianmh)"
-  },
-  {
     "name": "百合会",
     "key": "baihehui",
     "version": "1.0.0",
@@ -374,14 +366,6 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/pufeimh.js",
     "fileName": "pufeimh.js",
     "description": "扑飞漫画 (pufeimh)"
-  },
-  {
-    "name": "百年漫画",
-    "key": "bainianmh2",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/bainianmh2.js",
-    "fileName": "bainianmh2.js",
-    "description": "百年漫画 (bainianmh) - 新版"
   },
   {
     "name": "好多漫画",
