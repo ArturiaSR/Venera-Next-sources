@@ -86,65 +86,143 @@ function escapeRegex(s) {
 }
 
 /**
+ * Normalize image URL to absolute HTTPS URL
+ * @param {string} url
+ * @returns {string}
+ */
+function normalizeImageUrl(url) {
+    if (!url) return "";
+    let u = url.replace(/&amp;/g, "&").trim();
+    if (u.startsWith("//")) {
+        return "https:" + u;
+    }
+    if (u.startsWith("http://") || u.startsWith("https://")) {
+        return u;
+    }
+    if (u.startsWith("/")) {
+        if (u.indexOf("biccam.com") !== -1 || u.indexOf("/comics/") !== -1 || u.indexOf("/chapters/") !== -1) {
+            return CDN_URL + u;
+        }
+        return "https://mycomic.com" + u;
+    }
+    if (u.indexOf("biccam.com") !== -1 || u.indexOf("comics/") !== -1 || u.indexOf("chapters/") !== -1) {
+        return CDN_URL + "/" + u;
+    }
+    return "https://mycomic.com/" + u;
+}
+
+/**
+ * Extract map of comic id -> cover URL from raw HTML string and HTTP headers
+ * @param {string} text - HTML string and/or header string
+ * @returns {Map<string, string>}
+ */
+function extractCoversFromText(text) {
+    const map = new Map();
+    if (!text) return map;
+    const reg = /(?:https?:\/\/biccam\.com)?\/comics\/(\d+)-([a-zA-Z0-9_-]+)\.(jpg|jpeg|png|webp)/gi;
+    let m;
+    while ((m = reg.exec(text)) !== null) {
+        const id = m[1];
+        if (!map.has(id)) {
+            let url = m[0];
+            if (url.startsWith("/")) {
+                url = CDN_URL + url;
+            } else if (url.startsWith("//")) {
+                url = "https:" + url;
+            }
+            map.set(id, url);
+        }
+    }
+    return map;
+}
+
+/**
  * Safely extract cover image URL from an HtmlElement
  * @param {HtmlElement|null} img
  * @returns {string}
  */
 function extractCoverFromImg(img) {
     if (!img) return "";
-    let cover = img.attributes["data-src"] ||
-        img.attributes["data-cfsrc"] ||
-        img.attributes["data-original"] ||
-        img.attributes["data-lazy-src"] ||
+    const attrs = img.attributes || {};
+    let cover = attrs["data-src"] ||
+        attrs["data-cfsrc"] ||
+        attrs["data-original"] ||
+        attrs["data-lazy-src"] ||
+        attrs["data-url"] ||
+        attrs["data-cover"] ||
+        attrs["data-image"] ||
+        attrs[":src"] ||
+        attrs["x-bind:src"] ||
+        attrs["data-bg"] ||
         "";
     if (!cover) {
-        let src = img.attributes["src"] || "";
-        if (src && !src.startsWith("data:") && src.indexOf("placeholder") === -1 && src.indexOf("loading") === -1) {
+        let src = attrs["src"] || "";
+        if (src && !src.startsWith("data:") && src.indexOf("placeholder") === -1 && src.indexOf("loading") === -1 && src.indexOf("/flags/") === -1) {
             cover = src;
         }
     }
     if (!cover) {
-        let srcset = img.attributes["data-srcset"] || img.attributes["srcset"] || "";
+        let srcset = attrs["data-srcset"] || attrs["srcset"] || "";
         if (srcset) {
             let first = srcset.split(",")[0].trim().split(" ")[0];
             if (first && !first.startsWith("data:")) cover = first;
         }
     }
-    if (cover) {
-        cover = cover.replace(/&amp;/g, "&").trim();
-        if (cover.startsWith("//")) {
-            cover = "https:" + cover;
-        } else if (cover.startsWith("/") && (cover.indexOf("biccam.com") !== -1 || cover.indexOf("/comics/") !== -1 || cover.indexOf("/chapters/") !== -1)) {
-            cover = CDN_URL + cover;
-        } else if (cover.startsWith("/")) {
-            cover = "https://mycomic.com" + cover;
-        }
+    if (!cover && attrs["style"]) {
+        const bgMatch = /url\(['"]?([^'")]+)['"]?\)/i.exec(attrs["style"]);
+        if (bgMatch) cover = bgMatch[1];
     }
-    return cover;
+    return normalizeImageUrl(cover);
 }
 
 /**
  * Parse comic card from an <a> element
  * @param {HtmlElement} a
+ * @param {Map<string, string>} [coversMap=null]
  * @returns {Comic|null}
  */
-function parseComicCard(a) {
+function parseComicCard(a, coversMap = null) {
     const href = a.attributes["href"] || "";
     const match = /\/comics\/(\d+)/.exec(href);
     if (!match) return null;
     const id = match[1];
 
+    let cover = "";
+    if (coversMap && coversMap.has(id)) {
+        cover = coversMap.get(id);
+    }
+
     // Try finding img inside a, or as sibling/parent
     let img = a.querySelector("img");
-    let cover = extractCoverFromImg(img);
+    if (!cover) cover = extractCoverFromImg(img);
 
     if (!cover && a.parent) {
         img = a.parent.querySelector("img");
         cover = extractCoverFromImg(img);
+        if (!cover && a.parent.attributes && a.parent.attributes["style"]) {
+            const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(a.parent.attributes["style"]);
+            if (bgm) cover = normalizeImageUrl(bgm[1]);
+        }
     }
     if (!cover && a.parent && a.parent.parent) {
         img = a.parent.parent.querySelector("img");
         cover = extractCoverFromImg(img);
+        if (!cover && a.parent.parent.attributes && a.parent.parent.attributes["style"]) {
+            const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(a.parent.parent.attributes["style"]);
+            if (bgm) cover = normalizeImageUrl(bgm[1]);
+        }
+    }
+    if (!cover && a.parent && a.parent.parent && a.parent.parent.parent) {
+        img = a.parent.parent.parent.querySelector("img");
+        cover = extractCoverFromImg(img);
+        if (!cover && a.parent.parent.parent.attributes && a.parent.parent.parent.attributes["style"]) {
+            const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(a.parent.parent.parent.attributes["style"]);
+            if (bgm) cover = normalizeImageUrl(bgm[1]);
+        }
+    }
+
+    if (cover) {
+        cover = normalizeImageUrl(cover);
     }
 
     let title = img ? (img.attributes["alt"] || "").trim() : "";
@@ -179,16 +257,17 @@ function parseComicCard(a) {
  * Parse comic list from an HtmlDocument or HtmlElement
  * @param {HtmlDocument|HtmlElement} root
  * @param {boolean} [dedup=true]
+ * @param {Map<string, string>} [coversMap=null]
  * @returns {Comic[]}
  */
-function parseComicList(root, dedup = true) {
+function parseComicList(root, dedup = true, coversMap = null) {
     if (!root) return [];
     const links = root.querySelectorAll("a[href*='/comics/']");
     const comics = [];
     const seen = new Set();
 
     for (let i = 0; i < links.length; i++) {
-        const comic = parseComicCard(links[i]);
+        const comic = parseComicCard(links[i], coversMap);
         if (!comic) continue;
         if (dedup) {
             if (seen.has(comic.id)) continue;
@@ -203,14 +282,15 @@ function parseComicList(root, dedup = true) {
 /**
  * Parse all comic cards preserving order without global cross-section deduplication
  * @param {HtmlDocument|HtmlElement} root
+ * @param {Map<string, string>} [coversMap=null]
  * @returns {Comic[]}
  */
-function parseAllComicCards(root) {
+function parseAllComicCards(root, coversMap = null) {
     if (!root) return [];
     const links = root.querySelectorAll("a[href*='/comics/']");
     const comics = [];
     for (let i = 0; i < links.length; i++) {
-        const c = parseComicCard(links[i]);
+        const c = parseComicCard(links[i], coversMap);
         if (!c) continue;
         if (comics.length > 0 && comics[comics.length - 1].id === c.id) continue;
         comics.push(c);
@@ -260,7 +340,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.4";
+    version = "1.1.5";
 
     minAppVersion = "1.4.6";
 
@@ -354,6 +434,8 @@ class MyComic extends ComicSource {
             load: async () => {
                 const resp = await fetchWithCFCheck(BASE_URL);
                 if (resp.status !== 200) throw "HTTP " + resp.status;
+                const headerLink = (resp.headers && (resp.headers.link || resp.headers.Link || "")) + "";
+                const coversMap = extractCoversFromText(headerLink + " " + resp.body);
                 const doc = new HtmlDocument(resp.body);
                 const parts = {};
 
@@ -370,7 +452,7 @@ class MyComic extends ComicSource {
                 const candidateGrids = doc.querySelectorAll("div.grid, div[class*='grid'], ul.grid");
                 const sectionGrids = [];
                 for (let i = 0; i < candidateGrids.length; i++) {
-                    const list = parseComicList(candidateGrids[i], true);
+                    const list = parseComicList(candidateGrids[i], true, coversMap);
                     if (list.length >= 8 && list.length <= 16) {
                         sectionGrids.push(list);
                     }
@@ -394,16 +476,16 @@ class MyComic extends ComicSource {
                 function getComicsNearHeading(h) {
                     if (!h) return [];
                     let p = h.parent;
-                    let list = p ? parseComicList(p, true) : [];
+                    let list = p ? parseComicList(p, true, coversMap) : [];
                     if (list.length >= 6) return list;
                     let next = p ? p.nextElementSibling : null;
-                    list = next ? parseComicList(next, true) : [];
+                    list = next ? parseComicList(next, true, coversMap) : [];
                     if (list.length >= 6) return list;
                     next = h.nextElementSibling;
-                    list = next ? parseComicList(next, true) : [];
+                    list = next ? parseComicList(next, true, coversMap) : [];
                     if (list.length >= 6) return list;
                     let gp = p ? p.parent : null;
-                    list = gp ? parseComicList(gp, true) : [];
+                    list = gp ? parseComicList(gp, true, coversMap) : [];
                     if (list.length >= 6) return list;
                     return [];
                 }
@@ -419,7 +501,7 @@ class MyComic extends ComicSource {
                     }
                 }
 
-                const allCards = parseAllComicCards(doc);
+                const allCards = parseAllComicCards(doc, coversMap);
 
                 if (recComics.length > 0 && updateComics.length > 0 && latestComics.length > 0) {
                     parts[""] = fitToRow(allCards);
@@ -567,8 +649,10 @@ class MyComic extends ComicSource {
             const resp = await fetchWithCFCheck(url);
             if (resp.status !== 200) throw "HTTP " + resp.status;
 
+            const headerLink = (resp.headers && (resp.headers.link || resp.headers.Link || "")) + "";
+            const coversMap = extractCoversFromText(headerLink + " " + resp.body);
             const doc = new HtmlDocument(resp.body);
-            const comics = parseComicList(doc);
+            const comics = parseComicList(doc, true, coversMap);
             const maxPage = parseMaxPage(resp.body);
 
             return { comics, maxPage };
@@ -601,8 +685,10 @@ class MyComic extends ComicSource {
                 const resp = await fetchWithCFCheck(url);
                 if (resp.status !== 200) throw "HTTP " + resp.status;
 
+                const headerLink = (resp.headers && (resp.headers.link || resp.headers.Link || "")) + "";
+                const coversMap = extractCoversFromText(headerLink + " " + resp.body);
                 const doc = new HtmlDocument(resp.body);
-                const comics = parseComicList(doc);
+                const comics = parseComicList(doc, true, coversMap);
                 const maxPage = parseMaxPage(resp.body);
 
                 return { comics, maxPage };
@@ -627,8 +713,10 @@ class MyComic extends ComicSource {
             const resp = await fetchWithCFCheck(url);
             if (resp.status !== 200) throw "HTTP " + resp.status;
 
+            const headerLink = (resp.headers && (resp.headers.link || resp.headers.Link || "")) + "";
+            const coversMap = extractCoversFromText(headerLink + " " + resp.body);
             const doc = new HtmlDocument(resp.body);
-            const comics = parseComicList(doc);
+            const comics = parseComicList(doc, true, coversMap);
             const maxPage = parseMaxPage(resp.body);
 
             return { comics, maxPage };
@@ -671,7 +759,16 @@ class MyComic extends ComicSource {
             let cover = getMetaContent(html, "og:image") ||
                         getMetaContent(html, "twitter:image") || "";
 
-            // 2. Try DOM img on the detail page (essential for "通过URL获取")
+            // 2. Try link headers and raw HTML regex for this specific comic ID
+            if (!cover || cover.indexOf("biccam.com") === -1) {
+                const headerLink = (resp.headers && (resp.headers.link || resp.headers.Link || "")) + "";
+                const coversMap = extractCoversFromText(headerLink + " " + html);
+                if (coversMap.has(id)) {
+                    cover = coversMap.get(id);
+                }
+            }
+
+            // 3. Try DOM img on the detail page (essential for "通过URL获取")
             if (!cover || cover.indexOf("biccam.com") === -1) {
                 const imgs = doc.querySelectorAll("img");
                 for (let i = 0; i < imgs.length; i++) {
@@ -702,14 +799,7 @@ class MyComic extends ComicSource {
             }
 
             if (cover) {
-                cover = cover.replace(/&amp;/g, "&").trim();
-                if (cover.startsWith("//")) {
-                    cover = "https:" + cover;
-                } else if (cover.startsWith("/") && (cover.indexOf("biccam.com") !== -1 || cover.indexOf("/comics/") !== -1)) {
-                    cover = CDN_URL + cover;
-                } else if (cover.startsWith("/")) {
-                    cover = "https://mycomic.com" + cover;
-                }
+                cover = normalizeImageUrl(cover);
             }
             const keywords = getMetaContent(html, "keywords") || "";
 
@@ -841,14 +931,8 @@ class MyComic extends ComicSource {
 
         onImageLoad: (url, comicId, epId) => {
             if (!url) return null;
-            let finalUrl = url.replace(/&amp;/g, "&").trim();
-            if (finalUrl.startsWith("//")) {
-                finalUrl = "https:" + finalUrl;
-            } else if (finalUrl.startsWith("/") && (finalUrl.indexOf("biccam.com") !== -1 || finalUrl.indexOf("/chapters/") !== -1 || finalUrl.indexOf("/comics/") !== -1)) {
-                finalUrl = CDN_URL + finalUrl;
-            } else if (finalUrl.startsWith("/")) {
-                finalUrl = "https://mycomic.com" + finalUrl;
-            }
+            const finalUrl = normalizeImageUrl(url);
+            if (!finalUrl) return null;
             return {
                 url: finalUrl,
                 headers: {
@@ -865,14 +949,8 @@ class MyComic extends ComicSource {
 
         onThumbnailLoad: (url) => {
             if (!url) return null;
-            let finalUrl = url.replace(/&amp;/g, "&").trim();
-            if (finalUrl.startsWith("//")) {
-                finalUrl = "https:" + finalUrl;
-            } else if (finalUrl.startsWith("/") && (finalUrl.indexOf("biccam.com") !== -1 || finalUrl.indexOf("/comics/") !== -1 || finalUrl.indexOf("/chapters/") !== -1)) {
-                finalUrl = CDN_URL + finalUrl;
-            } else if (finalUrl.startsWith("/")) {
-                finalUrl = "https://mycomic.com" + finalUrl;
-            }
+            const finalUrl = normalizeImageUrl(url);
+            if (!finalUrl) return null;
             return {
                 url: finalUrl,
                 headers: {
