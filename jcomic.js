@@ -34,6 +34,27 @@ function parseEpIdFromHref(href) {
   return null;
 }
 
+function base64Decode(str) {
+  if (typeof atob === "function") {
+    try {
+      return atob(str);
+    } catch (e) {}
+  }
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+  let output = "";
+  str = String(str).replace(/=+$/, "");
+  for (let bc = 0, bs, buffer, idx = 0; (buffer = str.charAt(idx++)); ) {
+    buffer = chars.indexOf(buffer);
+    if (~buffer) {
+      bs = bc % 4 ? bs * 64 + buffer : buffer;
+      if (bc++ % 4) {
+        output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6)));
+      }
+    }
+  }
+  return output;
+}
+
 /**
  * 解析作品卡片 -> Comic
  * @param {Element} card
@@ -126,7 +147,7 @@ class JComic extends ComicSource {
   name = "jcomic.net";
   key = "jcomic";
 
-  version = "1.0.0";
+  version = "1.0.1";
   minAppVersion = "1.4.6";
 
   url =
@@ -451,8 +472,31 @@ class JComic extends ComicSource {
       if (resp.status !== 200) throw new Error(resp.status);
 
       const doc = new HtmlDocument(resp.body);
-      const imgs = doc.querySelectorAll("img.comic-thumb");
-      const images = Array.from(imgs).map((img) => img.attributes["src"]);
+      const imgs = doc.querySelectorAll("img.comic-thumb, img.jcomic-img");
+      const images = [];
+
+      for (const img of imgs) {
+        let imgUrl = "";
+        const lockedStr = img.attributes["data-locked"];
+        if (lockedStr) {
+          try {
+            const cleanStr = lockedStr.replace("JCOMIC_TRAPS_", "");
+            const unreversed = cleanStr.split("").reverse().join("");
+            imgUrl = base64Decode(unreversed);
+          } catch (e) {}
+        }
+        if (!imgUrl) {
+          imgUrl = img.attributes["src"] || img.attributes["data-src"] || "";
+        }
+        if (imgUrl) {
+          if (imgUrl.startsWith("//")) {
+            imgUrl = "https:" + imgUrl;
+          } else if (imgUrl.startsWith("/")) {
+            imgUrl = JCOMIC_BASE + imgUrl;
+          }
+          images.push(imgUrl);
+        }
+      }
 
       return { images };
     },
@@ -462,6 +506,9 @@ class JComic extends ComicSource {
         url,
         headers: {
           referer: JCOMIC_REFERER,
+          cookie: "jcomic_access=verified_user",
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
       };
     },
@@ -471,6 +518,9 @@ class JComic extends ComicSource {
         url,
         headers: {
           referer: JCOMIC_REFERER,
+          cookie: "jcomic_access=verified_user",
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
       };
     },
