@@ -139,7 +139,7 @@ function isCloudflareChallenge(status, body) {
 async function requestWithCFCheck(url, headers) {
     const res = await Network.get(url, headers);
     if (isCloudflareChallenge(res.status, res.body)) {
-        throw "Cloudflare 验证拦截：请在漫画源设置中切换备用域名，或稍后重试。";
+        throw "Cloudflare 验证拦截：请在漫画源设置中点击「登录」，通过内置浏览器完成验证后再试。";
     }
     return res;
 }
@@ -152,12 +152,12 @@ class Goda extends ComicSource {
   // 源唯一标识
   key = "goda"
 
-  version = "1.2.3"
+  version = "1.3.0"
 
   minAppVersion = "1.4.0"
 
   // 更新地址 (必须使用固定 Git Tag，严禁使用 @main)
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@v1.2.3/goda.js"
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@v1.3.0/goda.js"
 
   settings = {
     domains: {
@@ -185,8 +185,12 @@ class Goda extends ComicSource {
     return `https://${this.loadSetting("domains")}`;
   }
 
+  get apiHost() {
+    return `https://${this.loadSetting("api")}`;
+  }
+
   get apiUrl() {
-    return `https://${this.loadSetting("api")}/api/v2`;
+    return `${this.apiHost}/api/v2`;
   }
 
   get imageUrl() {
@@ -198,6 +202,198 @@ class Goda extends ComicSource {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0",
       "Referer": this.baseUrl
     };
+  }
+
+  // 缓存漫画 slug 与数值 mid 的映射
+  mangaIdCache = {}
+
+  getAuthToken() {
+    let token = this.loadData("jwt_token");
+    if (token) return token;
+
+    const storage = this.loadData("_localStorage");
+    if (storage && storage["whoamI"]) {
+      try {
+        const whoamI = typeof storage["whoamI"] === "string" ? JSON.parse(storage["whoamI"]) : storage["whoamI"];
+        if (whoamI && whoamI.jwt) {
+          this.saveData("jwt_token", whoamI.jwt);
+          return whoamI.jwt;
+        }
+      } catch (_) {}
+    }
+
+    const cookies = Network.getCookies(this.baseUrl);
+    if (cookies) {
+      for (let c of cookies) {
+        if (c.name === "jwt_token" && c.value) {
+          this.saveData("jwt_token", c.value);
+          return c.value;
+        }
+      }
+    }
+    return null;
+  }
+
+  async getMidByComicId(comicId) {
+    if (this.mangaIdCache[comicId]) {
+      return this.mangaIdCache[comicId];
+    }
+    const res = await requestWithCFCheck(this.baseUrl + comicId, this.headers);
+    if (res.status === 200) {
+      const doc = new HtmlDocument(res.body);
+      try {
+        const mangaEl = doc.querySelector("#mangachapters");
+        const mid = mangaEl && mangaEl.attributes ? mangaEl.attributes["data-mid"] : null;
+        if (mid) {
+          this.mangaIdCache[comicId] = Number(mid);
+          return Number(mid);
+        }
+      } finally {
+        doc.dispose();
+      }
+    }
+    throw "无法获取漫画 ID";
+  }
+
+  account = {
+    /**
+     * 原生账号密码登录：直接发送表单请求绕过前端 Turnstile 人机验证
+     */
+    login: async (account, pwd) => {
+      const data = `email=${encodeURIComponent(account.trim())}&password=${encodeURIComponent(pwd.trim())}`;
+      const res = await Network.post(`${this.apiHost}/api/user/auth`, {
+        ...this.headers,
+        "Content-Type": "application/x-www-form-urlencoded"
+      }, data);
+
+      if (res.status === 200) {
+        try {
+          const json = JSON.parse(res.body);
+          if (json && json.jwt) {
+            this.saveData("jwt_token", json.jwt);
+            if (json.user) {
+              this.saveData("user_info", JSON.stringify(json.user));
+            }
+            return "ok";
+          }
+        } catch (_) {}
+      }
+      throw "登录失败：账号或密码错误";
+    },
+
+    /**
+     * Webview 网页登录备用通道
+     */
+    loginWithWebview: {
+      url: "https://godamh.com/login",
+      checkStatus: (url, title) => {
+        const storage = this.loadData("_localStorage");
+        if (storage && storage["whoamI"]) {
+          return true;
+        }
+        return false;
+      },
+      onLoginSuccess: () => {
+        const storage = this.loadData("_localStorage");
+        if (storage && storage["whoamI"]) {
+          try {
+            const whoamI = typeof storage["whoamI"] === "string" ? JSON.parse(storage["whoamI"]) : storage["whoamI"];
+            if (whoamI && whoamI.jwt) {
+              this.saveData("jwt_token", whoamI.jwt);
+            }
+          } catch (_) {}
+        }
+      }
+    },
+
+    logout: () => {
+      this.deleteData("jwt_token");
+      this.deleteData("user_info");
+      this.deleteData("_localStorage");
+      Network.deleteCookies(this.baseUrl);
+      Network.deleteCookies(this.apiHost);
+    },
+
+    registerWebsite: "https://godamh.com/login"
+  }
+
+  /// 收藏夹相关
+  favorites = {
+    multiFolder: false,
+
+    addOrDelFavorite: async (comicId, folderId, isAdding, favoriteId) => {
+      const token = this.getAuthToken();
+      if (!token) {
+        throw "Login expired";
+      }
+
+      const mid = await this.getMidByComicId(comicId);
+      const res = await Network.post(`${this.apiHost}/api/user/bookmark`, {
+        ...this.headers,
+        "Content-Type": "application/json",
+        "Authorization": token
+      }, JSON.stringify({
+        mids: [mid],
+        action: isAdding ? "add" : "remove"
+      }));
+
+      if (res.status === 200) {
+        return "ok";
+      } else if (res.status === 401 || res.status === 403) {
+        throw "Login expired";
+      }
+      throw `操作失败: ${res.status}`;
+    },
+
+    loadComics: async (page, folder) => {
+      const token = this.getAuthToken();
+      if (!token) {
+        throw "Login expired";
+      }
+
+      const res = await Network.get(`${this.apiHost}/api/user/me`, {
+        ...this.headers,
+        "Authorization": token
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        throw "Login expired";
+      }
+      if (res.status !== 200) {
+        throw `Invalid status code: ${res.status}`;
+      }
+
+      let data;
+      try {
+        data = JSON.parse(res.body);
+      } catch (_) {
+        throw "解析收藏数据失败";
+      }
+
+      if (data.error) {
+        throw "Login expired";
+      }
+
+      const rawBookmarks = data.bookmarks || [];
+      const comics = [];
+      for (let b of rawBookmarks) {
+        if (b && b.slug) {
+          const cId = `/manga/${b.slug}`;
+          this.mangaIdCache[cId] = Number(b.id);
+          comics.push(new Comic({
+            id: cId,
+            title: b.title || "",
+            cover: b.cover || "",
+            description: b.lastChapter || b.desc || ""
+          }));
+        }
+      }
+
+      return {
+        comics: comics,
+        maxPage: 1
+      };
+    }
   }
 
   parseComics(doc) {
@@ -221,7 +417,6 @@ class Goda extends ComicSource {
   // 发现页列表
   explore = [
     {
-      // 页面标题
       title: this.name,
 
       type: "multiPartPage",
@@ -541,6 +736,31 @@ class Goda extends ComicSource {
         throw "无法获取漫画ID";
       }
 
+      this.mangaIdCache[id] = Number(mangaId);
+
+      // 检查当前漫画是否已被收藏
+      let isFavorite = false;
+      const token = this.getAuthToken();
+      if (token) {
+        try {
+          const meRes = await Network.get(`${this.apiHost}/api/user/me`, {
+            ...this.headers,
+            "Authorization": token
+          });
+          if (meRes.status === 200) {
+            const meData = JSON.parse(meRes.body);
+            if (meData && meData.bookmarks) {
+              for (let b of meData.bookmarks) {
+                this.mangaIdCache[`/manga/${b.slug}`] = Number(b.id);
+                if (String(b.id) === String(mangaId) || `/manga/${b.slug}` === id) {
+                  isFavorite = true;
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
       const chapters = {};
       const jsonRes = await requestWithCFCheck(`${this.apiUrl}/manga/get?mid=${mangaId}&mode=all&t=${Date.now()}`, this.headers);
       if (jsonRes.status !== 200) {
@@ -565,6 +785,7 @@ class Goda extends ComicSource {
         description: description,
         tags: tags,
         chapters: chapters,
+        isFavorite: isFavorite,
         recommend: recommend,
       });
     },
