@@ -113,13 +113,28 @@ function normalizeImageUrl(url) {
 
 /**
  * Extract map of comic id -> cover URL from raw HTML string and HTTP headers
- * @param {string} text - HTML string and/or header string
+ * Handles unescaping JSON slashes (\/), HTML entities (&quot;), and various extensions
+ * @param {string} rawText - HTML string and/or header string
  * @returns {Map<string, string>}
  */
-function extractCoversFromText(text) {
+function extractCoversFromText(rawText) {
     const map = new Map();
-    if (!text) return map;
-    const reg = /(?:https?:\/\/biccam\.com)?\/comics\/(\d+)-([a-zA-Z0-9_-]+)\.(jpg|jpeg|png|webp)/gi;
+    if (!rawText) return map;
+
+    // Unescape JSON slashes (\/ -> /) and common HTML entities
+    const text = rawText
+        .replace(/\\\/|\//g, "/")
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/&amp;/g, "&");
+
+    // Match all forms of comic covers:
+    // https://biccam.com/comics/1234-abcd.jpg
+    // //biccam.com/comics/1234-abcd.jpg
+    // /comics/1234-abcd.jpg
+    // biccam.com/comics/1234-abcd.jpg
+    // with or without hash, with various image extensions, with optional query string
+    const reg = /(?:(?:https?:)?\/\/[^\/\s"'>]+)?\/comics\/(\d+)(?:-([a-zA-Z0-9_.-]+))?\.(jpg|jpeg|png|webp|avif)(?:[?#][^\s"'>]*)?/gi;
     let m;
     while ((m = reg.exec(text)) !== null) {
         const id = m[1];
@@ -129,6 +144,8 @@ function extractCoversFromText(text) {
                 url = CDN_URL + url;
             } else if (url.startsWith("//")) {
                 url = "https:" + url;
+            } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                url = "https://" + url;
             }
             map.set(id, url);
         }
@@ -192,33 +209,21 @@ function parseComicCard(a, coversMap = null) {
         cover = coversMap.get(id);
     }
 
-    // Try finding img inside a, or as sibling/parent
-    let img = a.querySelector("img");
-    if (!cover) cover = extractCoverFromImg(img);
+    // Try finding img inside a, or across up to 4 parent levels
+    if (!cover) {
+        let img = a.querySelector("img");
+        cover = extractCoverFromImg(img);
+    }
 
-    if (!cover && a.parent) {
-        img = a.parent.querySelector("img");
+    let curr = a.parent;
+    for (let depth = 0; depth < 4 && !cover && curr; depth++) {
+        const img = curr.querySelector("img");
         cover = extractCoverFromImg(img);
-        if (!cover && a.parent.attributes && a.parent.attributes["style"]) {
-            const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(a.parent.attributes["style"]);
+        if (!cover && curr.attributes && curr.attributes["style"]) {
+            const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(curr.attributes["style"]);
             if (bgm) cover = normalizeImageUrl(bgm[1]);
         }
-    }
-    if (!cover && a.parent && a.parent.parent) {
-        img = a.parent.parent.querySelector("img");
-        cover = extractCoverFromImg(img);
-        if (!cover && a.parent.parent.attributes && a.parent.parent.attributes["style"]) {
-            const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(a.parent.parent.attributes["style"]);
-            if (bgm) cover = normalizeImageUrl(bgm[1]);
-        }
-    }
-    if (!cover && a.parent && a.parent.parent && a.parent.parent.parent) {
-        img = a.parent.parent.parent.querySelector("img");
-        cover = extractCoverFromImg(img);
-        if (!cover && a.parent.parent.parent.attributes && a.parent.parent.parent.attributes["style"]) {
-            const bgm = /url\(['"]?([^'")]+)['"]?\)/i.exec(a.parent.parent.parent.attributes["style"]);
-            if (bgm) cover = normalizeImageUrl(bgm[1]);
-        }
+        curr = curr.parent;
     }
 
     if (cover) {
@@ -340,7 +345,7 @@ class MyComic extends ComicSource {
 
     key = "mycomic";
 
-    version = "1.1.5";
+    version = "1.1.6";
 
     minAppVersion = "1.4.6";
 
