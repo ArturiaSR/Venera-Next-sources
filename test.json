@@ -202,8 +202,8 @@
   {
     "name": "紳士漫畫",
     "key": "wnacg",
-    "version": "1.0.6",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@wnacg-v1.0.6/wnacg.js",
+    "version": "1.0.7",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@wnacg-v1.0.7/wnacg.js",
     "fileName": "wnacg.js",
     "description": "紳士漫畫 (R18), 不能使用時請嘗試更換URL"
   },

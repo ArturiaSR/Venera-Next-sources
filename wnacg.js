@@ -47,11 +47,11 @@ function normalizeImageUrl(url) {
 class Wnacg extends ComicSource {
     name = "紳士漫畫"
     key = "wnacg"
-    version = "1.0.6"
+    version = "1.0.7"
     minAppVersion = "1.0.0"
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@wnacg-v1.0.6/wnacg.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@wnacg-v1.0.7/wnacg.js"
 
-    static domains = ["www.wnacg.com", "wnacg.com"];
+    static domains = ["www.wnacg.com"];
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -64,23 +64,29 @@ class Wnacg extends ComicSource {
         if (selection === undefined || selection === null) selection = 0
         selection = parseInt(selection)
 
+        let host = ''
         if (selection === 0) {
             // 选择自定义域名
             let domain0 = this.loadSetting('domain0')
             if (!domain0 || domain0.trim() === '') {
                 throw 'Custom domain is not set'
             }
-            let cleaned = domain0.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '')
-            return `https://${cleaned}`
+            host = domain0.trim()
         } else {
             // 选择获取的域名 (Domain 1-3)
             let index = selection - 1
             if (index >= Wnacg.domains.length) {
                 throw 'Selected domain is unavailable'
             }
-            let cleaned = Wnacg.domains[index].replace(/^https?:\/\//, '').replace(/\/+$/, '')
-            return `https://${cleaned}`
+            host = Wnacg.domains[index]
         }
+
+        let cleaned = host.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+        // 关键：wnacg 必须带 www 子域名，否则 Cloudflare/Nginx 重定向会导致 POST 丢弃请求体（如登录提示“請輸入用戶名！”）
+        if (cleaned === 'wnacg.com') {
+            cleaned = 'www.wnacg.com'
+        }
+        return `https://${cleaned}`
     }
 
     overwriteDomains(domains) {
@@ -117,13 +123,18 @@ class Wnacg extends ComicSource {
                 `login_name=${encodeURIComponent(account.trim())}&login_pass=${encodeURIComponent(pwd.trim())}`
             )
             if (res.status !== 200) {
-                throw 'Login failed'
+                throw `Login failed: HTTP ${res.status}`
             }
             let json = JSON.parse(res.body)
-            if (json && json['html'] && json['html'].includes('登錄成功')) {
+            if (json && (json['ret'] === true || (json['html'] && json['html'].includes('登錄成功')))) {
                 return 'ok'
             }
-            throw 'Login failed'
+            let errorMsg = 'Login failed'
+            if (json && json['html']) {
+                let clean = json['html'].replace(/<[^>]+>/g, '').trim()
+                if (clean) errorMsg = clean
+            }
+            throw errorMsg
         },
 
         /**
@@ -172,6 +183,7 @@ class Wnacg extends ComicSource {
                                 !domain.includes("google.cn") &&
                                 !domain.includes("cdn-cgi") &&
                                 !seenDomains.has(domain)) {
+                                if (domain === 'wnacg.com') domain = 'www.wnacg.com'
                                 domains.push(domain)
                                 seenDomains.add(domain)
                             }
@@ -537,7 +549,10 @@ class Wnacg extends ComicSource {
          * @returns {Promise<{folders: {[p: string]: string}, favorited: string[]}>} - `folders` is a map of folder id to folder name, `favorited` is a list of folder id which contains the comic
          */
         loadFolders: async (comicId) => {
-            let res = await this.request(`${this.baseUrl}/users-addfav-id-210814.html`)
+            let res = await this.request(`${this.baseUrl}/users-addfav-id-${comicId || '210814'}.html`)
+            if (res.body.includes("users-login.html") || res.body.includes("請先登錄") || res.body.includes("请先登录")) {
+                throw "Login expired"
+            }
             let document = new HtmlDocument(res.body)
             try {
                 let data = {}
@@ -591,6 +606,9 @@ class Wnacg extends ComicSource {
         loadComics: async (page, folder) => {
             let url = `${this.baseUrl}/users-users_fav-page-${page}-c-${folder}.html.html`
             let res = await this.request(url)
+            if (res.body.includes("users-login.html") || res.body.includes("請先登錄") || res.body.includes("请先登录")) {
+                throw "Login expired"
+            }
             let document = new HtmlDocument(res.body)
             try {
                 let comicBlocks = document.querySelectorAll("div.asTB")
@@ -825,7 +843,7 @@ class Wnacg extends ComicSource {
                 title: "Custom Domain",
                 type: "input",
                 validator: String.raw`^(?!:\/\/)(?=.{1,253})([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`,
-                default: 'wnacg.com',
+                default: 'www.wnacg.com',
             },
         }
     }
