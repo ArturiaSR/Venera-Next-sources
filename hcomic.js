@@ -29,20 +29,40 @@ class HComic extends ComicSource {
     // Unique id of the source
     key = "hcomic"
 
-    version = "1.0.2"
+    version = "1.0.3"
 
     minAppVersion = "1.6.0"
 
     // Update url
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hcomic-v1.0.2/hcomic.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hcomic-v1.0.3/hcomic.js"
 
-    baseUrl = "https://h-comic.com"
+    settings = {
+        domain: {
+            title: "域名设置",
+            type: "input",
+            default: "h-comic.com"
+        }
+    }
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Referer": "https://h-comic.com/",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+    get baseUrl() {
+        let domain = "h-comic.com";
+        try {
+            domain = this.loadSetting("domain") || "h-comic.com";
+        } catch (_) {
+            domain = "h-comic.com";
+        }
+        const cleanDomain = String(domain).trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+        return `https://${cleanDomain}`;
+    }
+
+    get headers() {
+        return {
+            "http_client": "dart:io",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Referer": `${this.baseUrl}/`,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+        };
     }
 
     /**
@@ -67,14 +87,24 @@ class HComic extends ComicSource {
     }
 
     async getHtml(url) {
-        let res = await Network.get(url, this.headers);
-        if (isCloudflareChallenge(res.status, res.body)) {
-            throw "Cloudflare 验证拦截：请在漫画源设置中点击「登录」，通过内置浏览器完成人机验证后再试。";
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                let res = await Network.get(url, this.headers);
+                if (isCloudflareChallenge(res.status, res.body)) {
+                    throw "Cloudflare 验证拦截：请在漫画源设置中点击「登录」，通过内置浏览器完成人机验证后再试。";
+                }
+                if (res.status === 200) {
+                    return res.body;
+                }
+                if (attempt === 1) {
+                    throw `网络请求失败 (状态码: ${res.status})`;
+                }
+            } catch (e) {
+                if (attempt === 1 || String(e).includes("Cloudflare")) {
+                    throw e;
+                }
+            }
         }
-        if (res.status !== 200) {
-            throw `网络请求失败 (状态码: ${res.status})`;
-        }
-        return res.body;
     }
 
     extractData(html) {
@@ -237,12 +267,10 @@ class HComic extends ComicSource {
             let sort = (options && options[0]) ? options[0] : "latest";
             let path = sort === "random" ? "/random" : "/";
             
-            let url = `${this.baseUrl}${path}?page=${page}&q=`;
+            let url = `${this.baseUrl}${path}?page=${page}`;
 
             if (param) {
                 url += `&tag=${encodeURIComponent(param)}`;
-            } else {
-                url += `&tag=`;
             }
 
             let html = await this.getHtml(url);
@@ -290,7 +318,7 @@ class HComic extends ComicSource {
             }
             if (!page || page < 1) page = 1;
 
-            let url = `${this.baseUrl}/?q=${encodeURIComponent(keyword.trim())}&tag=&page=${page}`;
+            let url = `${this.baseUrl}/?q=${encodeURIComponent(keyword.trim())}&page=${page}`;
             let html = await this.getHtml(url);
             let data = this.extractData(html);
             let maxPage = this.extractMaxPage(html, data);
@@ -399,14 +427,16 @@ class HComic extends ComicSource {
         onImageLoad: (url, comicId, epId) => ({
             url: url,
             headers: {
-                "Referer": "https://h-comic.com/",
+                "http_client": "dart:io",
+                "Referer": `${this.baseUrl}/`,
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             }
         }),
         onThumbnailLoad: (url) => ({
             url: url,
             headers: {
-                "Referer": "https://h-comic.com/",
+                "http_client": "dart:io",
+                "Referer": `${this.baseUrl}/`,
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             }
         }),
