@@ -46,5 +46,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.9/picacg.js",
     "fileName": "picacg.js",
     "description": "哔咔漫画 (picacg)"
+  },
+  {
+    "name": "爱看漫",
+    "key": "ikmmh",
+    "version": "1.0.7",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ikmmh-v1.0.7/ikmmh.js",
+    "fileName": "ikmmh.js",
+    "description": "爱看漫 (ikmmh)"
   }
 ]

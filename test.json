@@ -1,13 +1,5 @@
 [
   {
-    "name": "爱看漫",
-    "key": "ikmmh",
-    "version": "1.0.7",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ikmmh-v1.0.7/ikmmh.js",
-    "fileName": "ikmmh.js",
-    "description": "爱看漫 (ikmmh)"
-  },
-  {
     "name": "漫蛙吧",
     "key": "manwaba",
     "version": "1.0.0",
