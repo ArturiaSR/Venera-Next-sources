@@ -42,8 +42,8 @@
   {
     "name": "PicACG",
     "key": "picacg",
-    "version": "1.0.7",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.7/picacg.js",
+    "version": "1.0.8",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.8/picacg.js",
     "fileName": "picacg.js",
     "description": "PicACG (picacg)"
   }
