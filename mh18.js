@@ -6,12 +6,12 @@ class MH18 extends ComicSource {
   // 源唯一标识
   key = "mh18"
 
-  version = "1.1.1"
+  version = "1.1.2"
 
   minAppVersion = "1.4.0"
 
   // 更新地址 (必须锁定携带源前缀的 Git Tag，严禁使用 @main)
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mh18-v1.1.1/mh18.js"
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mh18-v1.1.2/mh18.js"
 
   settings = {
     domains: {
@@ -84,11 +84,27 @@ class MH18 extends ComicSource {
    * 统一网络请求与 Cloudflare 拦截防御
    */
   async fetchWithCFCheck(url) {
-    const res = await Network.get(url, this.headers);
-    if (this.isCloudflareChallenge(res.status, res.body)) {
-      throw "Cloudflare 验证拦截：请在漫画源设置中点击「登录」，通过内置浏览器完成验证后再试。";
+    try {
+      const res = await Network.get(url, this.headers);
+      if (this.isCloudflareChallenge(res.status, res.body)) {
+        throw "Cloudflare 验证拦截：请在漫画源设置中点击「登录」，通过内置浏览器完成验证后再试。";
+      }
+      return res;
+    } catch (e) {
+      if (typeof e === "string" && e.includes("Cloudflare")) {
+        throw e;
+      }
+      const errStr = String(e || "");
+      if (
+        errStr.includes("tls handshake eof") ||
+        errStr.includes("UnexpectedEof") ||
+        errStr.includes("Connection error") ||
+        errStr.includes("RhttpConnectionException")
+      ) {
+        throw "网络握手阻断 (TLS handshake EOF)：目标网站域名被本地网络拦截。请在代理软件（如 Clash Verge）中切换为「全局模式」或为该域名添加代理规则，过盾后即可正常加载。";
+      }
+      throw e;
     }
-    return res;
   }
 
   /**
