@@ -1031,12 +1031,12 @@ class Hitomi extends ComicSource {
   // unique id of the source
   key = "hitomi";
 
-  version = "1.1.4";
+  version = "1.1.5";
 
   minAppVersion = "1.4.6";
 
   // update url
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hitomi-v1.1.4/hitomi.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hitomi-v1.1.5/hitomi.js";
 
   galleryCache = [];
   categoryResultCache = undefined;
