@@ -218,8 +218,8 @@
   {
     "name": "禁漫天堂",
     "key": "jm",
-    "version": "1.4.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/jm.js",
+    "version": "1.4.1",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jm-v1.4.1/jm.js",
     "fileName": "jm.js",
     "description": "禁漫天堂 (R18), 不能使用時請嘗試切換分流"
   },

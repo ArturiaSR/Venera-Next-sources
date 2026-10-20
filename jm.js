@@ -1,3 +1,5 @@
+/** @type {import('./_venera_.js')} */
+
 class JM extends ComicSource {
     // Note: The fields which are marked as [Optional] should be removed if not used
 
@@ -7,7 +9,7 @@ class JM extends ComicSource {
     // unique id of the source
     key = "jm"
 
-    version = "1.4.0"
+    version = "1.4.1"
 
     minAppVersion = "1.5.0"
 
@@ -16,11 +18,18 @@ class JM extends ComicSource {
     static jmPkgName = "com.example.app"
 
     // update url
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/jm.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jm-v1.4.1/jm.js"
 
     dailyCheckInInProgress = false
 
     static fallbackServers = [
+        "www.cdntwice.org",
+        "www.cdnsha.org",
+        "www.cdnaspa.cc",
+        "www.cdnntr.cc",
+    ];
+
+    static apiDomains = [
         "www.cdntwice.org",
         "www.cdnsha.org",
         "www.cdnaspa.cc",
@@ -36,8 +45,13 @@ class JM extends ComicSource {
     }
 
     get baseUrl() {
-        let index = parseInt(this.loadSetting('apiDomain')) - 1
-        return `https://${JM.apiDomains[index]}`
+        let rawIndex = parseInt(this.loadSetting('apiDomain'));
+        let index = (!isNaN(rawIndex) && rawIndex > 0) ? rawIndex - 1 : 0;
+        const domains = (JM.apiDomains && JM.apiDomains.length > 0) ? JM.apiDomains : JM.fallbackServers;
+        if (index < 0 || index >= domains.length) {
+            index = 0;
+        }
+        return `https://${domains[index]}`;
     }
 
     get imageUrl() {
@@ -45,15 +59,27 @@ class JM extends ComicSource {
     }
 
     overwriteApiDomains(domains) {
-        if (domains.length != 0) JM.apiDomains = domains
+        if (domains && domains.length > 0) JM.apiDomains = domains
     }
 
     overwriteImgUrl(url) {
-        if (url.length != 0) JM.imageUrl = url
+        if (url && url.length > 0) JM.imageUrl = url
     }
 
     isNum(str) {
         return /^\d+$/.test(str)
+    }
+
+    fitToRow(list, max = 28) {
+        if (!list || list.length === 0) return [];
+        let count = Math.min(list.length, max);
+        let rows = Math.floor(count / 4);
+        return list.slice(0, Math.max(rows * 4, 4));
+    }
+
+    stripHtml(html) {
+        if (!html) return "";
+        return html.replace(/<[^>]*>/g, '').trim();
     }
 
     get baseHeaders() {
@@ -72,8 +98,8 @@ class JM extends ComicSource {
     }
 
     getApiHeaders(time) {
-        if (this.loadSetting("dailyCheckInTask")) {
-            this.dailyCheckIn(true)
+        if (this.loadSetting("dailyCheckInTask") && !this.dailyCheckInInProgress && this.isLogged) {
+            this.dailyCheckIn(true).catch(() => {});
         }
         const jmAuthKey = "18comicAPPContent"
         let token = Convert.md5(Convert.encodeUtf8(`${time}${jmAuthKey}`))
@@ -117,8 +143,14 @@ class JM extends ComicSource {
     }
 
     async init() {
-        if (this.loadSetting('refreshDomainsOnStart')) await this.refreshApiDomains(false)
-        this.refreshImgUrl(false)
+        if (this.loadSetting('refreshDomainsOnStart')) {
+            try {
+                await this.refreshApiDomains(false);
+            } catch (error) {}
+        }
+        try {
+            await this.refreshImgUrl(false);
+        } catch (error) {}
     }
 
     /**
@@ -204,15 +236,15 @@ class JM extends ComicSource {
      */
     parseComic(comic) {
         let id = comic.id.toString()
-        let author = comic.author
-        let title = comic.name
+        let author = comic.author ?? ""
+        let title = comic.name ?? ""
         let description = comic.description ?? ""
         let cover = this.getCoverUrl(id)
-        let tags =[]
-        if(comic["category"]["title"]) {
+        let tags = []
+        if (comic["category"] && comic["category"]["title"]) {
             tags.push(comic["category"]["title"])
         }
-        if(comic["category_sub"]["title"]) {
+        if (comic["category_sub"] && comic["category_sub"]["title"]) {
             tags.push(comic["category_sub"]["title"])
         }
         return new Comic({
@@ -258,12 +290,20 @@ class JM extends ComicSource {
         let res = await Network.get(url, this.getApiHeaders(time))
         if(res.status !== 200) {
             if(res.status === 401) {
-                let json = JSON.parse(res.body)
-                let message = json.errorMsg
-                if(message === "請先登入會員" && this.isLogged) {
-                    throw 'Login expired'
+                try {
+                    let json = JSON.parse(res.body)
+                    let message = json.errorMsg
+                    if(message === "請先登入會員" && this.isLogged) {
+                        throw 'Login expired'
+                    }
+                    throw message ?? 'Invalid Status Code: ' + res.status
+                } catch (e) {
+                    if (e === 'Login expired') throw e;
+                    throw 'Invalid Status Code: ' + res.status;
                 }
-                throw message ?? 'Invalid Status Code: ' + res.status
+            }
+            if (res.status === 403 || res.status === 503) {
+                throw `线路暂时不可用 (${res.status})，请在源设置中尝试切换分流或刷新域名列表`;
             }
             throw 'Invalid Status Code: ' + res.status
         }
@@ -284,12 +324,20 @@ class JM extends ComicSource {
         }, body)
         if(res.status !== 200) {
             if(res.status === 401) {
-                let json = JSON.parse(res.body)
-                let message = json.errorMsg
-                if(message === "請先登入會員" && this.isLogged) {
-                    throw 'Login expired'
+                try {
+                    let json = JSON.parse(res.body)
+                    let message = json.errorMsg
+                    if(message === "請先登入會員" && this.isLogged) {
+                        throw 'Login expired'
+                    }
+                    throw message ?? 'Invalid Status Code: ' + res.status
+                } catch (e) {
+                    if (e === 'Login expired') throw e;
+                    throw 'Invalid Status Code: ' + res.status;
                 }
-                throw message ?? 'Invalid Status Code: ' + res.status
+            }
+            if (res.status === 403 || res.status === 503) {
+                throw `线路暂时不可用 (${res.status})，请在源设置中尝试切换分流或刷新域名列表`;
             }
             throw 'Invalid Status Code: ' + res.status
         }
@@ -305,7 +353,9 @@ class JM extends ComicSource {
         if (this.dailyCheckInInProgress) return
         this.dailyCheckInInProgress = true
         const throwError = (msg) => {
-            UI.showMessage(msg)
+            if (!isTask) {
+                UI.showMessage(msg)
+            }
             throw msg
         }
         try {
@@ -334,7 +384,9 @@ class JM extends ComicSource {
             if (!checkResult.msg) {
                 throwError("Invalid check-in result, check-in failed")
             }
-            UI.showMessage(checkResult.msg)
+            if (!isTask) {
+                UI.showMessage(checkResult.msg)
+            }
             this.saveData("lastCheckInDate", today)
         } finally {
             this.dailyCheckInInProgress = false
@@ -350,12 +402,14 @@ class JM extends ComicSource {
          * @returns {Promise<any>}
          */
         login: async (account, pwd) => {
-            let time = Math.floor(Date.now() / 1000)
             let res = await this.post(
                 `${this.baseUrl}/login`,
                 `username=${encodeURIComponent(account)}&password=${encodeURIComponent(pwd)}`
             )
             let json = JSON.parse(res)
+            if (json.status === "fail" || json.errorMsg) {
+                throw json.errorMsg || json.msg || "登录失败：账号或密码错误"
+            }
             if (json.uid) {
                 this.saveData("uid", json.uid)
             }
@@ -366,8 +420,12 @@ class JM extends ComicSource {
          * logout function, clear account related data
          */
         logout: () => {
-            for (let url of JM.apiDomains) {
+            this.deleteData("uid");
+            this.deleteData("lastCheckInDate");
+            const domains = (JM.apiDomains && JM.apiDomains.length > 0) ? JM.apiDomains : JM.fallbackServers;
+            for (let url of domains) {
                 Network.deleteCookies(url)
+                Network.deleteCookies(`https://${url}`)
             }
         },
 
@@ -407,7 +465,8 @@ class JM extends ComicSource {
                     if (['library', 'novels'].includes(type)) {
                         continue
                     }
-                    let comics = e.content.map((e) => this.parseComic(e))
+                    let parsedComics = (e.content || []).map((item) => this.parseComic(item))
+                    let comics = this.fitToRow(parsedComics, 28)
                     result.push({
                         title: e.title,
                         comics: comics,
@@ -469,7 +528,6 @@ class JM extends ComicSource {
                     '全彩',
                     '女性向',
                     '完結',
-                    '純愛',
                     '禁漫漢化組'
                 ],
                 itemType: "search",
@@ -520,7 +578,7 @@ class JM extends ComicSource {
                 itemType: "search",
             },
             {
-                name: "特殊PLAY",
+                name: "其他題材",
                 type: "fixed",
                 categories: ['CG', '重口', '獵奇', '非H', '血腥暴力', '站長推薦'],
                 itemType: "search",
@@ -544,19 +602,23 @@ class JM extends ComicSource {
             if (category !== "每週必看") {
                 param ??= category
                 param = encodeURIComponent(param)
-                let res = await this.get(`${this.baseUrl}/categories/filter?o=${options[0]}&c=${param}&page=${page}`)
+                let order = (options && options[0]) ? options[0] : "mr"
+                let res = await this.get(`${this.baseUrl}/categories/filter?o=${order}&c=${param}&page=${page}`)
                 let data = JSON.parse(res)
-                let total = data.total
-                let maxPage = Math.ceil(total / 80)
-                let comics = data.content.map((e) => this.parseComic(e))
+                let total = Number(data.total) || 0
+                let calculatedMax = Math.ceil(total / 80)
+                let maxPage = !isNaN(calculatedMax) && calculatedMax > 0 ? calculatedMax : 1
+                let comics = (data.content || []).map((e) => this.parseComic(e))
                 return {
                     comics: comics,
                     maxPage: maxPage
                 }
             } else {
-                let res = await this.get(`${this.baseUrl}/week/filter?id=${options[0]}&type=${options[1]}&page=0`)
+                let opt0 = (options && options[0]) ? options[0] : "0"
+                let opt1 = (options && options[1]) ? options[1] : "manga"
+                let res = await this.get(`${this.baseUrl}/week/filter?id=${opt0}&type=${opt1}&page=0`)
                 let data = JSON.parse(res)
-                let comics = data.list.map((e) => this.parseComic(e))
+                let comics = (data.list || []).map((e) => this.parseComic(e))
                 return {
                     comics: comics,
                     maxPage: 1
@@ -590,7 +652,7 @@ class JM extends ComicSource {
                 let res = await this.get(`${this.baseUrl}/week`)
                 let data = JSON.parse(res)
                 let options = []
-                for (let e of data["categories"]) {
+                for (let e of (data["categories"] || [])) {
                     options.push(`${e["id"]}-${e["time"]}`)
                 }
                 return [
@@ -639,18 +701,22 @@ class JM extends ComicSource {
          * @returns {Promise<{comics: Comic[], maxPage: number}>}
          */
         load: async (keyword, options, page) => {
-            keyword = keyword.trim()
-            keyword = encodeURIComponent(keyword)
-            keyword = keyword.replace(/%20/g, '+')
-            let url = `${this.baseUrl}/search?search_query=${keyword}&o=${options[0]}`
+            if (!keyword || !keyword.trim()) {
+                return { comics: [], maxPage: 1 }
+            }
+            let trimmed = keyword.trim()
+            let encoded = encodeURIComponent(trimmed).replace(/%20/g, '+')
+            let order = (options && options[0]) ? options[0] : "mr"
+            let url = `${this.baseUrl}/search?search_query=${encoded}&o=${order}`
             if(page > 1) {
                 url += `&page=${page}`
             }
             let res = await this.get(url)
             let data = JSON.parse(res)
-            let total = data.total
-            let maxPage = Math.ceil(total / 80)
-            let comics = data.content.map((e) => this.parseComic(e))
+            let total = Number(data.total) || 0
+            let calculatedMax = Math.ceil(total / 80)
+            let maxPage = !isNaN(calculatedMax) && calculatedMax > 0 ? calculatedMax : 1
+            let comics = (data.content || []).map((e) => this.parseComic(e))
             return {
                 comics: comics,
                 maxPage: maxPage
@@ -690,6 +756,9 @@ class JM extends ComicSource {
          * @returns {Promise<any>} - return any value to indicate success
          */
         addOrDelFavorite: async (comicId, folderId, isAdding, favoriteId) => {
+            if (comicId.startsWith('jm')) {
+                comicId = comicId.substring(2)
+            }
             if (isAdding) {
                 await this.post(`${this.baseUrl}/favorite`, `aid=${comicId}`)
                 await this.post(`${this.baseUrl}/favorite_folder`, `type=move&folder_id=${folderId}&aid=${comicId}`)
@@ -710,7 +779,7 @@ class JM extends ComicSource {
                 "0": this.translate("All")
             }
             let json = JSON.parse(res)
-            for (let e of json.folder_list) {
+            for (let e of (json.folder_list || [])) {
                 folders[e.FID.toString()] = e.name
             }
             return {
@@ -724,7 +793,7 @@ class JM extends ComicSource {
          * @returns {Promise<any>} - return any value to indicate success
          */
         addFolder: async (name) => {
-            await this.post(`${this.baseUrl}/favorite_folder`, `type=add&folder_name=${name}`)
+            await this.post(`${this.baseUrl}/favorite_folder`, `type=add&folder_name=${encodeURIComponent(name)}`)
         },
         /**
          * delete a folder
@@ -742,12 +811,14 @@ class JM extends ComicSource {
          * @returns {Promise<{comics: Comic[], maxPage: number}>}
          */
         loadComics: async (page, folder) => {
-            let order = this.loadSetting('favoriteOrder')
-            let res = await this.get(`${this.baseUrl}/favorite?folder_id=${folder}&page=${page}&o=${order}`)
+            let order = this.loadSetting('favoriteOrder') || 'mr'
+            let folderParam = folder ? `&folder_id=${folder}` : ''
+            let res = await this.get(`${this.baseUrl}/favorite?page=${page}&o=${order}${folderParam}`)
             let json = JSON.parse(res)
-            let total = json.total
-            let maxPage = Math.ceil(total / 20)
-            let comics = json.list.map((e) => this.parseComic(e))
+            let total = Number(json.total) || 0
+            let calculatedMax = Math.ceil(total / 20)
+            let maxPage = !isNaN(calculatedMax) && calculatedMax > 0 ? calculatedMax : 1
+            let comics = (json.list || []).map((e) => this.parseComic(e))
             return {
                 comics: comics,
                 maxPage: maxPage
@@ -769,9 +840,9 @@ class JM extends ComicSource {
             }
             let res = await this.get(`${this.baseUrl}/album?id=${id}`);
             let data = JSON.parse(res)
-            let author = data.author ?? []
-            let works = data.works ?? []
-            let actors = data.actors ?? []
+            let author = Array.isArray(data.author) ? data.author : (data.author ? [data.author] : [])
+            let works = Array.isArray(data.works) ? data.works : (data.works ? [data.works] : [])
+            let actors = Array.isArray(data.actors) ? data.actors : (data.actors ? [data.actors] : [])
             let chapters = new Map()
             let series = (data.series ?? []).sort((a, b) => a.sort - b.sort)
             for(let e of series) {
@@ -780,36 +851,38 @@ class JM extends ComicSource {
                 if(title.length === 0) {
                     title = `第${e["sort"]}話`
                 }
-                let id = e.id.toString()
-                chapters.set(id, title)
+                let chapterId = e.id.toString()
+                chapters.set(chapterId, title)
             }
             if(chapters.size === 0) {
                 chapters.set(id, '第1話')
             }
-            let tags = data.tags ?? []
-            let related = data["related_list"].map((e) => new Comic({
+            let tags = Array.isArray(data.tags) ? data.tags : (data.tags ? [data.tags] : [])
+            let related = (data["related_list"] || []).map((e) => new Comic({
                 id: e.id.toString(),
                 title: e.name,
                 subtitle: e.author ?? "",
                 cover: this.getCoverUrl(e.id),
                 description: e.description ?? ""
             }))
-            let updateTimeStamp = data["addtime"];
-            let date = new Date(updateTimeStamp * 1000)
-            let updateDate = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-
+            let updateTimeStamp = Number(data["addtime"]);
+            let updateDate = "";
+            if (!isNaN(updateTimeStamp) && updateTimeStamp > 0) {
+                let date = new Date(updateTimeStamp * 1000)
+                updateDate = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+            }
             return new ComicDetails({
-                title: data.name,
+                title: data.name ?? "",
                 cover: this.getCoverUrl(id),
-                description: data.description,
-                likesCount: Number(data.likes),
+                description: data.description ?? "",
+                likesCount: Number(data.likes) || 0,
                 chapters: chapters,
                 tags: {
                     "Author": author,
                     "Tag": tags,
                     "Work": works,
                     "Actor": actors,
-                    "View": data.total_views ? [data.total_views] : [],
+                    "View": data.total_views ? [data.total_views.toString()] : [],
                 },
                 recommend: related,
                 isFavorite: data.is_favorite ?? false,
@@ -824,9 +897,12 @@ class JM extends ComicSource {
          * @returns {Promise<{images: string[]}>}
          */
         loadEp: async (comicId, epId) => {
+            if (epId && epId.startsWith('jm')) {
+                epId = epId.substring(2)
+            }
             let res = await this.get(`${this.baseUrl}/chapter?id=${epId}`);
             let data = JSON.parse(res)
-            let images = data.images.map((e) => this.getImageUrl(epId, e))
+            let images = (data.images || []).map((e) => this.getImageUrl(epId, e))
             return {
                 images: images
             }
@@ -840,43 +916,42 @@ class JM extends ComicSource {
          */
         onImageLoad: (url, comicId, epId) => {
             const scrambleId = 220980
-            let pictureName = "";
-            for (let i = url.length - 1; i >= 0; i--) {
-                if (url[i] === '/') {
-                    pictureName = url.substring(i + 1, url.length - 5);
-                    break;
-                }
-            }
-            epId = Number(epId);
+
+            let fileName = url.substring(url.lastIndexOf('/') + 1).split('?')[0];
+            let dotIndex = fileName.lastIndexOf('.');
+            let pictureName = dotIndex !== -1 ? fileName.substring(0, dotIndex) : fileName;
+
+            let numericEpId = Number(epId && epId.toString().startsWith('jm') ? epId.toString().substring(2) : epId);
             let num = 0
-            if(epId < scrambleId) {
+            if (numericEpId < scrambleId) {
                 num = 0
-            } else if (epId < 268850) {
+            } else if (numericEpId < 268850) {
                 num = 10
-            } else if (epId > 421926) {
-                let str = epId.toString() + pictureName
+            } else if (numericEpId > 421926) {
+                let str = numericEpId.toString() + pictureName
                 let bytes = Convert.encodeUtf8(str)
                 let hash = Convert.md5(bytes)
                 let hashStr = Convert.hexEncode(hash)
-                let charCode = hashStr.charCodeAt(hashStr.length-1)
+                let charCode = hashStr.charCodeAt(hashStr.length - 1)
                 let remainder = charCode % 8
                 num = remainder * 2 + 2
             } else {
-                let str = epId.toString() + pictureName
+                let str = numericEpId.toString() + pictureName
                 let bytes = Convert.encodeUtf8(str)
                 let hash = Convert.md5(bytes)
                 let hashStr = Convert.hexEncode(hash)
-                let charCode = hashStr.charCodeAt(hashStr.length-1)
+                let charCode = hashStr.charCodeAt(hashStr.length - 1)
                 let remainder = charCode % 10
                 num = remainder * 2 + 2
             }
-            if (num <= 1) {
-                return {}
-            }
-            return {
+
+            const result = {
                 headers: this.getImgHeaders(),
-                // gif 图片不需要修改
-                modifyImage: url.endsWith(".gif") ? null : `
+            }
+
+            // gif 图片不需要修改
+            if (num > 1 && !url.toLowerCase().endsWith(".gif")) {
+                result.modifyImage = `
                     let modifyImage = (image) => {
                         const num = ${num}
                         let blockSize = Math.floor(image.height / num)
@@ -900,8 +975,10 @@ class JM extends ComicSource {
                         }
                         return res
                     }
-                `,
+                `
             }
+
+            return result
         },
         /**
          * [Optional] provide configs for a thumbnail loading
@@ -920,6 +997,9 @@ class JM extends ComicSource {
          * @returns {Promise<void>}
          */
         likeComic: async (id, isLike) => {
+            if (id.startsWith('jm')) {
+                id = id.substring(2)
+            }
             let res = await this.post(`${this.baseUrl}/like`, `id=${id}`)
             let json = JSON.parse(res)
             if (json.code !== 200 || json.status === 'error') {
@@ -936,17 +1016,26 @@ class JM extends ComicSource {
          * @returns {Promise<{comments: Comment[], maxPage: number?}>}
          */
         loadComments: async (comicId, subId, page, replyTo) => {
+            if (comicId.startsWith('jm')) {
+                comicId = comicId.substring(2)
+            }
             let res = await this.get(`${this.baseUrl}/forum?mode=manhua&aid=${comicId}&page=${page}`)
             let json = JSON.parse(res)
             const pageSize = 6
+            let total = Number(json.total) || 0
+            let calculatedMax = Math.ceil(total / pageSize)
+            let maxPage = !isNaN(calculatedMax) && calculatedMax > 0 ? calculatedMax : 1
             return {
-                comments: json.list.map((e) => new Comment({
-                    avatar: this.getAvatarUrl(e.photo),
-                    userName: e.username,
-                    time: e.addtime,
-                    content: e.content.substring(e.content.indexOf('>') + 1, e.content.lastIndexOf('<')),
-                })),
-                maxPage: Math.floor(json.total / pageSize) + 1
+                comments: (json.list || []).map((e) => {
+                    let cleanedContent = this.stripHtml(e.content) || e.content || ""
+                    return new Comment({
+                        avatar: this.getAvatarUrl(e.photo),
+                        userName: e.username,
+                        time: e.addtime,
+                        content: cleanedContent,
+                    })
+                }),
+                maxPage: maxPage
             }
         },
         /**
@@ -958,6 +1047,9 @@ class JM extends ComicSource {
          * @returns {Promise<any>}
          */
         sendComment: async (comicId, subId, content, replyTo) => {
+            if (comicId.startsWith('jm')) {
+                comicId = comicId.substring(2)
+            }
             let res = await this.post(`${this.baseUrl}/comment`, `aid=${comicId}&comment=${encodeURIComponent(content)}&status=undefined`)
             let json = JSON.parse(res)
             if (json.status === "fail") {
