@@ -7,19 +7,62 @@ class Nhentai extends ComicSource {
     // unique id of the source
     key = "nhentai"
 
-    version = "1.1.0"
+    version = "1.1.1"
 
     minAppVersion = "1.0.0"
 
     // update url
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/nhentai.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.1/nhentai.js"
 
     baseUrl = "https://nhentai.net"
     apiBaseUrl = "https://nhentai.net/api/v2"
     imageServer = "https://i3.nhentai.net"
     thumbServer = "https://t3.nhentai.net"
+    webUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     apiUserAgent = "Venera/1.0 (+https://github.com/venera-app/venera)"
     tagIdCache = {};
+    _galleryCache = {};
+
+    cloudflareMessage = "Cloudflare 验证拦截：请在漫画源设置中点击「登录」完成验证，或检查网络连接。";
+
+    isCloudflare(status, body) {
+        if (status === 403 || status === 503) {
+            if (typeof body === "string" && (
+                body.includes("challenge-platform") ||
+                body.includes("cf-browser-verification") ||
+                body.includes("Just a moment") ||
+                body.includes("__cf_chl_") ||
+                body.includes("<title>Access denied")
+            )) {
+                return true;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    getWebHeaders() {
+        return {
+            "User-Agent": this.webUserAgent,
+            "Referer": "https://nhentai.net/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+        }
+    }
+
+    getApiBaseHeaders() {
+        return {
+            "User-Agent": this.apiUserAgent,
+            "Accept": "application/json",
+        }
+    }
+
+    fitToRow(list, max = 28) {
+        if (!Array.isArray(list) || list.length === 0) return [];
+        const count = Math.min(list.length, max);
+        const rows = Math.floor(count / 4);
+        return list.slice(0, Math.max(rows * 4, 4));
+    }
 
     settings = {
         apiKey: {
@@ -47,6 +90,7 @@ class Nhentai extends ComicSource {
         logout: () => {
             Network.deleteCookies('https://nhentai.net')
             this.deleteData("accessToken")
+            this._galleryCache = {}
         },
 
         // {string?} - register url
@@ -66,24 +110,31 @@ class Nhentai extends ComicSource {
         let href = element.querySelector("a")?.attributes?.["href"] || "";
         let idMatch = href.match(regex);
         let id = idMatch ? idMatch.join('') : "";
+
+        let classNames = element.attributes?.["class"] || "";
+        let dataTags = element.attributes?.["data-tags"] || "";
+
         let lang = "Unknown";
-        let tags = element.attributes?.["class"];
-        if (tags.includes("lang-gb")) {
-            lang = "English";
-        } else if (tags.includes("lang-jp")) {
-            lang = "日本語";
-        } else if (tags.includes("lang-cn")) {
+        if (classNames.includes("lang-cn") || dataTags.includes("29963")) {
             lang = "中文";
+        } else if (classNames.includes("lang-jp") || dataTags.includes("6346")) {
+            lang = "日本語";
+        } else if (classNames.includes("lang-gb") || dataTags.includes("12227")) {
+            lang = "English";
         }
+
         let tagsRes = [];
-        for (let tag of tags.split(" ")) {
-            if (Nhentai.nhentaiTags[tag] != null) {
-                tagsRes.push(Nhentai.nhentaiTags[tag]);
+        let tagPool = (dataTags + " " + classNames).split(/\s+/).filter(Boolean);
+        for (let tag of tagPool) {
+            let cleanTag = tag.replace(/^tag-/, "");
+            if (Nhentai.nhentaiTags[cleanTag] != null) {
+                tagsRes.push(Nhentai.nhentaiTags[cleanTag]);
             }
         }
+
         return new Comic({
             id: id,
-            title: name,
+            title: name || id,
             subtitle: "",
             cover: this.toAbsoluteMediaUrl(img, true),
             tags: tagsRes,
@@ -107,7 +158,8 @@ class Nhentai extends ComicSource {
         if (!url) return { url: "" }
 
         url = url.replace(/(\.(jpg|png|webp|gif))+/g, (m) => {
-            return m.match(/\.(jpg|png|webp|gif)/g)[0]
+            let match = m.match(/\.(jpg|png|webp|gif)/g);
+            return match ? match[0] : m;
         })
 
         if (url.includes("/cover.")) {
@@ -126,7 +178,7 @@ class Nhentai extends ComicSource {
             url,
             headers: {
                 "Referer": "https://nhentai.net/",
-                "User-Agent": "Mozilla/5.0"
+                "User-Agent": this.webUserAgent
             }
         }
     }
@@ -173,28 +225,25 @@ class Nhentai extends ComicSource {
                 if(!tag || !tag.name){
                     continue;
                 }
-                let namespace =
-                    (tag.type || "tag").toLowerCase();
-                let cacheKey =
-                    namespace + ":" + tag.slug;
+                let namespace = (tag.type || "tag").toLowerCase();
+                let cacheKey = namespace + ":" + tag.slug;
                 // 建立缓存
                 this.tagIdCache[cacheKey] = tag.id;
                 if(tag.name){
                     tagsRes.push(tag.name);
                 }
             }
-
         } else {
-
             // API 没有 tags 时再使用旧表
             for (let tagId of tagIds) {
-            let tag = Nhentai.nhentaiTags[String(tagId)];
-            if (tag != null) {
-                tagsRes.push(tag);
-            }
+                let tag = Nhentai.nhentaiTags[String(tagId)];
+                if (tag != null) {
+                    tagsRes.push(tag);
+                }
             }
         }
 
+        let maxPage = parseInt(item.num_pages);
         return new Comic({
             id: String(item.id),
             title: item.english_title || item.japanese_title || String(item.id),
@@ -203,14 +252,15 @@ class Nhentai extends ComicSource {
             tags: tagsRes,
             description: String(item.id),
             language: lang,
-            maxPage: item.num_pages || 0
+            maxPage: !isNaN(maxPage) && maxPage > 0 ? maxPage : 0
         })
     }
 
     parseComicListFromApi(data) {
+        let maxPage = parseInt(data?.num_pages);
         return {
-            comics: (data.result || []).map(e => this.parseComicFromApi(e)),
-            maxPage: data.num_pages || 1
+            comics: (data?.result || []).map(e => this.parseComicFromApi(e)),
+            maxPage: !isNaN(maxPage) && maxPage > 0 ? maxPage : 1
         }
     }
 
@@ -233,14 +283,16 @@ class Nhentai extends ComicSource {
         let res = await Network.get(url, this.getApiBaseHeaders());
 
         if (res.status !== 200) {
-            throw "Invalid Status Code: " + res.status
+            if (this.isCloudflare(res.status, res.body)) {
+                throw this.cloudflareMessage;
+            }
+            throw this.buildApiError(res, "Failed to load galleries");
         }
         return this.parseComicListFromApi(JSON.parse(res.body));
     }
 
     async loadTagCategory(tagId, page = 1, sort = "") {
-        let url =
-            `${this.apiBaseUrl}/galleries/tagged?tag_id=${tagId}&page=${page}&sort=${sort}`;
+        let url = `${this.apiBaseUrl}/galleries/tagged?tag_id=${tagId}&page=${page}&sort=${sort}`;
         return await this.loadApiGalleries(url);
     }
 
@@ -278,13 +330,6 @@ class Nhentai extends ComicSource {
         }
         let cookie = cookies.find((item) => item?.name === name)
         return typeof cookie?.value === "string" ? cookie.value : ""
-    }
-
-    getApiBaseHeaders() {
-        return {
-            "User-Agent": this.apiUserAgent,
-            "Accept": "application/json",
-        }
     }
 
     getApiKey() {
@@ -355,11 +400,14 @@ class Nhentai extends ComicSource {
     }
 
     buildApiError(res, fallbackMessage) {
+        if (this.isCloudflare(res.status, res.body)) {
+            return this.cloudflareMessage;
+        }
         if (res.status === 401) {
-            return "Authentication required. Please login again or provide API Key in source settings."
+            return "未登录或登录已过期：请在漫画源设置中登录账号或填写 API Key。"
         }
         if (res.status === 429) {
-            return "Rate limited by nhentai API. Please wait a minute and retry."
+            return "请求过于频繁受到限流 (HTTP 429)，请稍候一分钟再试。"
         }
         let detail = this.parseApiError(res)
         if (detail) {
@@ -410,59 +458,84 @@ class Nhentai extends ComicSource {
         return res
     }
 
-    async parseComicList(html, type='search') {
+    async parseComicList(html, type = 'search') {
         let document = new HtmlDocument(html)
-        let comicElements = document.querySelectorAll("div.gallery")
+        try {
+            let comicElements = document.querySelectorAll("div.gallery")
 
-        let numbers = '0'
-        let total = comicElements.length;
-        let maxPageFromApi = null;
+            let total = comicElements.length;
+            let maxPageFromApi = null;
 
-        switch(type) {
-            case 'search':
-                let h1 = document.querySelector("div#content > h1")?.text || ""
-                numbers = h1.match(/\d+/g)
-
-                if(numbers) {
-                    total = parseInt(numbers.join(''))
-                }
-            break;
-            default:
-                let tagEl = document.querySelector("div#content > h1 > a");
-                let classAttr = tagEl?.attributes?.["class"];
-                let tagId = classAttr?.match(/tag-(\d+)/)?.[1];
-                if (!tagId) {
+            switch (type) {
+                case 'search':
                     let h1 = document.querySelector("div#content > h1")?.text || ""
-                    numbers = h1.match(/\d+/g)
-                    if(numbers) {
-                        total = parseInt(numbers.join(''))
+                    let numbers = h1.match(/\d+/g)
+                    if (numbers) {
+                        let parsed = parseInt(numbers.join(''))
+                        if (!isNaN(parsed) && parsed >= 0) {
+                            total = parsed;
+                        }
                     }
                     break;
+                default:
+                    let tagEl = document.querySelector("div#content > h1 > a");
+                    let classAttr = tagEl?.attributes?.["class"];
+                    let tagId = classAttr?.match(/tag-(\d+)/)?.[1];
+                    if (!tagId) {
+                        let h1 = document.querySelector("div#content > h1")?.text || ""
+                        let nums = h1.match(/\d+/g)
+                        if (nums) {
+                            let parsed = parseInt(nums.join(''))
+                            if (!isNaN(parsed) && parsed >= 0) {
+                                total = parsed;
+                            }
+                        }
+                        break;
+                    }
+
+                    // Prefer v2 API to get accurate pagination for tag pages.
+                    try {
+                        let res = await Network.get(`${this.apiBaseUrl}/galleries/tagged?tag_id=${tagId}`, this.getApiBaseHeaders())
+                        if (res.status === 200) {
+                            let resBody = JSON.parse(res.body);
+                            if (resBody?.num_pages != null) {
+                                let np = parseInt(resBody.num_pages);
+                                if (!isNaN(np) && np > 0) {
+                                    maxPageFromApi = np;
+                                }
+                            }
+                            if (resBody?.total != null) {
+                                let tot = parseInt(resBody.total);
+                                if (!isNaN(tot) && tot >= 0) {
+                                    total = tot;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        // ignore API error, fallback to HTML pagination
+                    }
+            }
+
+            // Pagination from HTML if available
+            let paginationLast = document.querySelector("section.pagination a.last")?.attributes?.["href"] || "";
+            let pageMatch = paginationLast.match(/page=(\d+)/);
+            let htmlMaxPage = null;
+            if (pageMatch) {
+                let p = parseInt(pageMatch[1]);
+                if (!isNaN(p) && p > 0) {
+                    htmlMaxPage = p;
                 }
+            }
 
-                // Prefer v2 API to get accurate pagination for tag pages.
-                let res = await Network.get(`${this.apiBaseUrl}/galleries/tagged?tag_id=${tagId}`, this.getApiBaseHeaders())
-                if(res.status !== 200) {
-                    let h1 = document.querySelector("div#content > h1")?.text || ""
-                    numbers = h1.match(/\d+/g)
+            let calculatedMaxPage = Math.ceil(total / 25);
+            let finalMaxPage = maxPageFromApi || htmlMaxPage || (!isNaN(calculatedMaxPage) && calculatedMaxPage > 0 ? calculatedMaxPage : 1);
 
-                    if(numbers) {
-                        total = parseInt(numbers.join(''))
-                    }
-                } else {
-                    let resBody = JSON.parse(res.body);
-                    if (resBody?.num_pages != null) {
-                        maxPageFromApi = resBody.num_pages;
-                    }
-                    if (resBody?.total != null) {
-                        total = resBody.total;
-                    }
-                }
-        }
-
-        return {
-            comics: comicElements.map(e => this.parseComic(e)),
-            maxPage: maxPageFromApi || Math.ceil(total / 25)
+            return {
+                comics: comicElements.map(e => this.parseComic(e)),
+                maxPage: finalMaxPage
+            }
+        } finally {
+            document.dispose();
         }
     }
 
@@ -486,24 +559,29 @@ class Nhentai extends ComicSource {
                 let data = [];
 
                 if (currentPage === 1) {
-                    let popular;
-                    if (this.popularCache) {
-                        popular = this.popularCache;
-                    } else {
-                        let res = await Network.get(
-                            `${this.apiBaseUrl}/galleries/popular`,
-                            this.getApiBaseHeaders()
-                        );
-                        if (res.status !== 200) {
-                            throw "Invalid Status Code: " + res.status;
+                    try {
+                        let popular;
+                        if (this.popularCache) {
+                            popular = this.popularCache;
+                        } else {
+                            let res = await Network.get(
+                                `${this.apiBaseUrl}/galleries/popular`,
+                                this.getApiBaseHeaders()
+                            );
+                            if (res.status === 200) {
+                                popular = JSON.parse(res.body);
+                                this.popularCache = popular;
+                            }
                         }
-                        popular = JSON.parse(res.body);
-                        this.popularCache = popular;
+                        if (Array.isArray(popular) && popular.length > 0) {
+                            data.push({
+                                title: "Popular Now",
+                                comics: this.fitToRow(popular.map(e => this.parseComicFromApi(e)), 8)
+                            });
+                        }
+                    } catch (e) {
+                        // popular section failure shouldn't block latest list
                     }
-                    data.push({
-                        title: "Popular Now",
-                        comics: popular.map(e => this.parseComicFromApi(e))
-                    });
                 }
 
                 let latest = await this.loadApiGalleries(
@@ -511,12 +589,12 @@ class Nhentai extends ComicSource {
                 );
 
                 if (currentPage === 1) {
-                        data.push({
-                            title: "New Uploads",
-                            comics: latest.comics
-                        });
+                    data.push({
+                        title: "New Uploads",
+                        comics: latest.comics
+                    });
                 } else {
-                        data.push(latest.comics);
+                    data.push(latest.comics);
                 }
 
                 return {
@@ -586,14 +664,13 @@ class Nhentai extends ComicSource {
                     `${this.apiBaseUrl}/search?query=*&sort=${sort}&page=${page || 1}`
                 );
                 if(res.status !== 200){
-                    throw "Invalid Status Code: " + res.status;
+                    if (this.isCloudflare(res.status, res.body)) {
+                        throw this.cloudflareMessage;
+                    }
+                    throw this.buildApiError(res, "Failed to load ranking");
                 }
                 let data = JSON.parse(res.body);
-                return {
-                    comics: (data.result || [])
-                        .map(e => this.parseComicFromApi(e)),
-                    maxPage: data.num_pages || 1
-                };
+                return this.parseComicListFromApi(data);
             },
         },
 
@@ -646,7 +723,6 @@ class Nhentai extends ComicSource {
 
             // 语言
             if(!tagId && param === "language") {
-
                 let languageMap = {
                     chinese: 29963,
                     english: 12227,
@@ -666,7 +742,6 @@ class Nhentai extends ComicSource {
                     .replace(/\s+/g, "-");
 
                 for (let id in Nhentai.nhentaiTags) {
-
                     let tagName =
                         Nhentai.nhentaiTags[id]
                         .toLowerCase()
@@ -681,7 +756,6 @@ class Nhentai extends ComicSource {
 
             // tag 分类
             if(tagId){
-
                 return await this.loadTagCategory(
                     tagId,
                     page || 1,
@@ -689,11 +763,17 @@ class Nhentai extends ComicSource {
                 );
             }
 
-    // API 找不到时保留网页备用
-            let url =
-            `${this.baseUrl}/${param}/${encodeURIComponent(category)}?page=${page}`;
-            let res = await Network.get(url,{});
-            return this.parseComicList(
+            // API 找不到时保留网页备用
+            let sortSegment = sort && sort !== "date" ? `/${sort}` : "";
+            let url = `${this.baseUrl}/${param}/${encodeURIComponent(category)}${sortSegment}?page=${page || 1}`;
+            let res = await Network.get(url, this.getWebHeaders());
+            if (res.status !== 200) {
+                if (this.isCloudflare(res.status, res.body)) {
+                    throw this.cloudflareMessage;
+                }
+                throw "Invalid Status Code: " + res.status;
+            }
+            return await this.parseComicList(
                 res.body,
                 "category"
             );
@@ -723,11 +803,29 @@ class Nhentai extends ComicSource {
          * @returns {Promise<{comics: Comic[], maxPage: number}>}
          */
         load: async (keyword, options, page) => {
-            let sort = options[0] || "date"
-            let url = `${this.apiBaseUrl}/search?query=${encodeURIComponent(keyword)}&page=${page}&sort=${sort}`
+            if (!keyword || !keyword.trim()) {
+                return { comics: [], maxPage: 1 };
+            }
+            let trimmed = keyword.trim();
+            let sort = options?.[0] || "date";
+            let url = `${this.apiBaseUrl}/search?query=${encodeURIComponent(trimmed)}&page=${page || 1}&sort=${sort}`
             let res = await Network.get(url, this.getApiBaseHeaders());
             if(res.status !== 200) {
-                throw "Invalid Status Code: " + res.status
+                if (this.isCloudflare(res.status, res.body)) {
+                    throw this.cloudflareMessage;
+                }
+                // Try web search fallback
+                try {
+                    let webSortSegment = sort && sort !== "date" ? `&sort=${sort}` : "";
+                    let webUrl = `${this.baseUrl}/search/?q=${encodeURIComponent(trimmed)}&page=${page || 1}${webSortSegment}`;
+                    let webRes = await Network.get(webUrl, this.getWebHeaders());
+                    if (webRes.status === 200) {
+                        return await this.parseComicList(webRes.body, 'search');
+                    }
+                } catch (e) {
+                    // pass
+                }
+                throw this.buildApiError(res, "Search failed");
             }
             return this.parseComicListFromApi(JSON.parse(res.body))
         },
@@ -771,6 +869,9 @@ class Nhentai extends ComicSource {
             if (res.status === 200) {
                 return true
             }
+            if (this.isCloudflare(res.status, res.body)) {
+                throw this.cloudflareMessage;
+            }
             throw this.buildApiError(res, "Failed to update online favorites")
         },
         /**
@@ -780,10 +881,13 @@ class Nhentai extends ComicSource {
          * @returns {Promise<{comics: Comic[], maxPage: number}>}
          */
         loadComics: async (page, folder) => {
-            let apiUrl = `${this.apiBaseUrl}/favorites?page=${page}`
+            let apiUrl = `${this.apiBaseUrl}/favorites?page=${page || 1}`
             let apiRes = await this.sendAuthRequest("GET", apiUrl)
             if (apiRes.status === 200) {
                 return this.parseComicListFromApi(JSON.parse(apiRes.body))
+            }
+            if (this.isCloudflare(apiRes.status, apiRes.body)) {
+                throw this.cloudflareMessage;
             }
             throw this.buildApiError(apiRes, "Failed to load online favorites")
         }
@@ -802,7 +906,7 @@ class Nhentai extends ComicSource {
         onThumbnailLoad: (url) => {
             return this._fixAndWrap(url)
         },
-        onImageLoad: (url) => {
+        onImageLoad: (url, comicId, epId) => {
             return this._fixAndWrap(url)
         },
         /**
@@ -819,6 +923,8 @@ class Nhentai extends ComicSource {
             )
             if (apiRes.status === 200) {
                 let data = JSON.parse(apiRes.body)
+                if (!this._galleryCache) this._galleryCache = {};
+                this._galleryCache[id] = data;
 
                 let title = data?.title?.pretty || data?.title?.english || String(id)
                 let englishTitle = data?.title?.english || ""
@@ -829,17 +935,15 @@ class Nhentai extends ComicSource {
                 for (let tag of (data.tags || [])) {
                     let namespace = (tag.type || "tag").toLowerCase();
                     if (!this.tagIdCache) {
-                            this.tagIdCache = {};
+                        this.tagIdCache = {};
                     }
                     if(tag.slug && tag.id){
-                        let cacheKey =
-                            namespace + ":" + tag.slug;
-                    // 保存 tag id，给后面的分类搜索使用
+                        let cacheKey = namespace + ":" + tag.slug;
                         this.tagIdCache[cacheKey] = tag.id;
                     }
                     let displayNamespace = this.tagNamespace(tag.type);
                     if (!tags.has(displayNamespace)) {
-                            tags.set(displayNamespace, [])
+                        tags.set(displayNamespace, [])
                     }
                     tags.get(displayNamespace).push(tag.name)
                 }
@@ -848,19 +952,27 @@ class Nhentai extends ComicSource {
                     .map(p => this.toAbsoluteMediaUrl(p.thumbnail, true))
                     .filter(Boolean)
                 if (thumbnails.length === 0) {
-                    let pagesRes = await this.sendAuthRequest(
-                        "GET",
-                        `${this.apiBaseUrl}/galleries/${id}`,
-                    )
-                    if (pagesRes.status === 200) {
-                        let pagesData = JSON.parse(pagesRes.body)
-                        thumbnails = (pagesData.pages || [])
-                            .map(p => this.toAbsoluteMediaUrl(p.thumbnail, true))
-                            .filter(Boolean)
+                    try {
+                        let pagesRes = await this.sendAuthRequest(
+                            "GET",
+                            `${this.apiBaseUrl}/galleries/${id}`,
+                        )
+                        if (pagesRes.status === 200) {
+                            let pagesData = JSON.parse(pagesRes.body)
+                            if (pagesData.pages) {
+                                this._galleryCache[id] = Object.assign({}, this._galleryCache[id], pagesData);
+                            }
+                            thumbnails = (pagesData.pages || [])
+                                .map(p => this.toAbsoluteMediaUrl(p.thumbnail, true))
+                                .filter(Boolean)
+                        }
+                    } catch (e) {
+                        // pass
                     }
                 }
 
                 let related = (data.related || []).map(e => this.parseComicFromApi(e))
+                let maxPages = parseInt(data?.num_pages);
 
                 let comic = new ComicDetails({
                     id: String(id),
@@ -868,7 +980,7 @@ class Nhentai extends ComicSource {
                     subtitle: subtitle || "",
                     cover: cover || "",
                     tags: tags,
-                    maxPage: data?.num_pages || 0,
+                    maxPage: !isNaN(maxPages) && maxPages > 0 ? maxPages : thumbnails.length,
                     uploadTime: this.formatTimestamp(data?.upload_date),
                     isFavorite: !!data?.is_favorited,
                     thumbnails: thumbnails,
@@ -879,75 +991,89 @@ class Nhentai extends ComicSource {
                 return comic
             }
 
-            let res = await Network.get(`${this.baseUrl}/g/${id}/`, {})
+            if (this.isCloudflare(apiRes.status, apiRes.body)) {
+                throw this.cloudflareMessage;
+            }
+
+            // Web fallback
+            let res = await Network.get(`${this.baseUrl}/g/${id}/`, this.getWebHeaders())
             if(res.status !== 200) {
+                if (this.isCloudflare(res.status, res.body)) {
+                    throw this.cloudflareMessage;
+                }
                 throw "Invalid Status Code: " + res.status
             }
             let document = new HtmlDocument(res.body)
-            let coverEl = document.querySelector("div#cover > a > img")
-            let cover = coverEl?.attributes?.["data-src"] || coverEl?.attributes?.["src"] || "";
-            let mainTitle = document.querySelector("h1.title")?.text || "";
-            let secondaryTitle = document.querySelector("h2.title")?.text || "";
-            let title = secondaryTitle || mainTitle || String(id)
-            let subtitle = mainTitle && mainTitle !== title ? mainTitle : ""
-            if (!subtitle) {
-                subtitle = ""
-            }
-            let tags = new Map();
-            let uploadTimeRaw = document.querySelector("time")?.attributes?.["datetime"] || ""
-            let uploadTime = ""
-            if (uploadTimeRaw) {
-                let parsed = new Date(Date.parse(uploadTimeRaw))
-                if (!Number.isNaN(parsed.getTime())) {
-                    const year = parsed.getFullYear()
-                    const month = parsed.getMonth() + 1
-                    const day = parsed.getDate()
-                    const hour = parsed.getHours()
-                    const minute = parsed.getMinutes()
-                    uploadTime = `${year}-${month}-${day} ${hour}:${minute}`
-                }
-            }
-            for (let field of document.querySelectorAll("div.tag-container")) {
-                let name = field.nodes[0].text.trim().replaceAll(':', '')
-                if(name === "Uploaded") {
-                    continue;
-                }
-                let r = field.querySelectorAll("span.name").map(e => e.text);
-                if(r.length > 0) {
-                    tags.set(name, r)
-                }
-            }
-            let isFavorite = this.isLogged && document.querySelector("button#favorite > span.text")?.text !== "Favorite"
-            let thumbs = document.querySelectorAll("a.gallerythumb > img")
-                .map(e => e.attributes?.["data-src"] || e.attributes?.["src"] || "")
-                .filter(Boolean)
-            let related = document.querySelectorAll("div.gallery").map(e => {
-                return this.parseComic(e)
-            })
-            let csrfToken = ''
             try {
-                let script = document.querySelectorAll("script").find((e) => {
-                    return e.text.includes("csrf_token")
-                }).text
-                csrfToken = script.split("csrf_token: \"")[1].split("\",")[0]
+                let coverEl = document.querySelector("div#cover > a > img")
+                let cover = coverEl?.attributes?.["data-src"] || coverEl?.attributes?.["src"] || "";
+                let mainTitle = document.querySelector("h1.title")?.text || "";
+                let secondaryTitle = document.querySelector("h2.title")?.text || "";
+                let title = secondaryTitle || mainTitle || String(id)
+                let subtitle = mainTitle && mainTitle !== title ? mainTitle : ""
+                if (!subtitle) {
+                    subtitle = ""
+                }
+                let tags = new Map();
+                let uploadTimeRaw = document.querySelector("time")?.attributes?.["datetime"] || ""
+                let uploadTime = ""
+                if (uploadTimeRaw) {
+                    let parsed = new Date(Date.parse(uploadTimeRaw))
+                    if (!Number.isNaN(parsed.getTime())) {
+                        const year = parsed.getFullYear()
+                        const month = parsed.getMonth() + 1
+                        const day = parsed.getDate()
+                        const hour = parsed.getHours()
+                        const minute = parsed.getMinutes()
+                        uploadTime = `${year}-${month}-${day} ${hour}:${minute}`
+                    }
+                }
+                for (let field of document.querySelectorAll("div.tag-container")) {
+                    let name = field.nodes?.[0]?.text?.trim()?.replaceAll(':', '') || ""
+                    if(name === "Uploaded") {
+                        continue;
+                    }
+                    let r = field.querySelectorAll("span.name").map(e => e.text);
+                    if(r.length > 0) {
+                        tags.set(name, r)
+                    }
+                }
+                let isFavorite = this.isLogged && document.querySelector("button#favorite > span.text")?.text !== "Favorite"
+                let thumbs = document.querySelectorAll("a.gallerythumb > img")
+                    .map(e => e.attributes?.["data-src"] || e.attributes?.["src"] || "")
+                    .filter(Boolean)
+                let related = document.querySelectorAll("div.gallery").map(e => {
+                    return this.parseComic(e)
+                })
+                let csrfToken = ''
+                try {
+                    let script = document.querySelectorAll("script").find((e) => {
+                        return e.text.includes("csrf_token")
+                    })?.text
+                    if (script) {
+                        csrfToken = script.split("csrf_token: \"")[1]?.split("\",")?.[0] || ""
+                    }
+                } catch (e) {
+                    // pass
+                }
+                let comic = new ComicDetails({
+                    id: String(id),
+                    title: title || String(id),
+                    subtitle: subtitle || "",
+                    cover: this._fixAndWrap(cover).url,
+                    tags: tags,
+                    maxPage: thumbs.length || 0,
+                    uploadTime: uploadTime || "",
+                    isFavorite: isFavorite,
+                    thumbnails: thumbs.map(u => this._fixAndWrap(u).url),
+                    related: related,
+                    url: `${this.baseUrl}/g/${id}/`,
+                })
+                comic.csrfToken = csrfToken
+                return comic
+            } finally {
+                document.dispose();
             }
-            catch (e) {
-                // pass
-            }
-            let comic = new ComicDetails({
-                id: String(id),
-                title: title || String(id),
-                subtitle: subtitle || "",
-                cover: cover || "",
-                tags: tags,
-                uploadTime: uploadTime || "",
-                isFavorite: isFavorite,
-                thumbnails: thumbs,
-                related: related,
-                url: `${this.baseUrl}/g/${id}/`,
-            })
-            comic.csrfToken = csrfToken
-            return comic
         },
         /**
          * load images of a chapter
@@ -958,19 +1084,52 @@ class Nhentai extends ComicSource {
         loadEp: async (comicId, epId) => {
             comicId = this.normalizeComicId(comicId)
 
+            if (this._galleryCache?.[comicId]?.pages?.length) {
+                let images = this._galleryCache[comicId].pages.map(p => this.toAbsoluteMediaUrl(p.path, false))
+                if (images.length > 0) {
+                    return { images: images }
+                }
+            }
+
             let apiRes = await this.sendAuthRequest(
                 "GET",
                 `${this.apiBaseUrl}/galleries/${comicId}`,
             )
             if (apiRes.status === 200) {
                 let apiData = JSON.parse(apiRes.body)
+                if (!this._galleryCache) this._galleryCache = {};
+                this._galleryCache[comicId] = apiData;
                 let images = (apiData.pages || []).map(p => this.toAbsoluteMediaUrl(p.path, false))
                 if (images.length > 0) {
                     return { images: images }
                 }
-            } else {
-                throw "Invalid Status Code: " + apiRes.status
             }
+
+            if (this.isCloudflare(apiRes.status, apiRes.body)) {
+                throw this.cloudflareMessage;
+            }
+
+            // HTML fallback if API fails
+            let res = await Network.get(`${this.baseUrl}/g/${comicId}/`, this.getWebHeaders());
+            if (res.status === 200) {
+                let document = new HtmlDocument(res.body);
+                try {
+                    let thumbs = document.querySelectorAll("a.gallerythumb > img")
+                        .map(e => e.attributes?.["data-src"] || e.attributes?.["src"] || "")
+                        .filter(Boolean);
+                    if (thumbs.length > 0) {
+                        let images = thumbs.map(u => {
+                            let fixed = u.replace(/\/\/[it]\d\.nhentai\.net\//, "//i3.nhentai.net/");
+                            return fixed.replace(/(\d+)t\.([a-zA-Z]+)$/, "$1.$2");
+                        });
+                        return { images };
+                    }
+                } finally {
+                    document.dispose();
+                }
+            }
+
+            throw this.buildApiError(apiRes, "Failed to load chapter images");
         },
         /**
          * [Optional] load comments
@@ -987,17 +1146,20 @@ class Nhentai extends ComicSource {
                 `${this.apiBaseUrl}/galleries/${comicId}/comments`,
             )
             if(res.status !== 200) {
-                throw "Invalid Status Code: " + res.status
+                if (this.isCloudflare(res.status, res.body)) {
+                    throw this.cloudflareMessage;
+                }
+                throw this.buildApiError(res, "Failed to load comments");
             }
             let data = JSON.parse(res.body)
             let comments = (data.result || []).map(c => {
                 return new Comment({
-                    userName: c.poster.username,
-                    avatar: this.toAbsoluteMediaUrl(c.poster.avatar_url, false),
-                    content: c.body,
+                    userName: c.poster?.username || "Anonymous",
+                    avatar: this.toAbsoluteMediaUrl(c.poster?.avatar_url, false),
+                    content: c.body || "",
                     time: typeof c.post_date === "number"
                         ? this.formatTimestamp(c.post_date)
-                        : String(c.post_date),
+                        : String(c.post_date || ""),
                 })
             })
             return {
@@ -1064,6 +1226,11 @@ class Nhentai extends ComicSource {
             "Groups": "团队",
             "Parodies": "原作",
             "Categories": "分类",
+            "Popular Now": "当前热门",
+            "New Uploads": "最新上传",
+            "Chinese": "中文",
+            "English": "英文",
+            "Japanese": "日文",
         },
         'zh_TW': {
             'Tags': '標籤',
@@ -1080,6 +1247,11 @@ class Nhentai extends ComicSource {
             "Groups": "團隊",
             "Parodies": "原作",
             "Categories": "分類",
+            "Popular Now": "當前熱門",
+            "New Uploads": "最新上傳",
+            "Chinese": "中文",
+            "English": "英文",
+            "Japanese": "日文",
         },
         'en': {}
     }

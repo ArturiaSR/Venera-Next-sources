@@ -194,8 +194,8 @@
   {
     "name": "nhentai",
     "key": "nhentai",
-    "version": "1.1.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/nhentai.js",
+    "version": "1.1.1",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.1/nhentai.js",
     "fileName": "nhentai.js",
     "description": "nhentai (R18)"
   },
