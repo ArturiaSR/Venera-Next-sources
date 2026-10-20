@@ -53,22 +53,52 @@ async function validatorPost(url, headers, body) {
   return res;
 }
 
+function isCloudflareChallenge(status, body) {
+  if (status === 403 || status === 503) {
+    if (body && (
+      body.indexOf("challenge-platform") !== -1 ||
+      body.indexOf("cf-browser-verification") !== -1 ||
+      body.indexOf("Just a moment") !== -1 ||
+      body.indexOf("__cf_chl_") !== -1 ||
+      body.indexOf("Attention Required") !== -1
+    )) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function assertSiteAccessible(res, url) {
   const body = String(res.body || "");
+  const status = Number(res.status || 0);
+
+  if (isCloudflareChallenge(status, body)) {
+    throw new Error(
+      `爱看漫受到 Cloudflare 安全拦截：请在漫画源设置中点击「登录」通过内置浏览器完成人机验证后再试。`
+    );
+  }
+
   if (
-    Number(res.status) === 403 &&
+    status === 403 &&
     /the\s+region\s+has\s+been\s+denied/i.test(body)
   ) {
     throw new Error(
       `爱看漫拒绝了当前地区的访问（403）。请在漫画源设置中填写本机可直接访问的官方域名；Cookie 或 User-Agent 无法解除地区封锁。地址：${url}`
     );
   }
-  if (Number(res.status) === 403) {
+  if (status === 403) {
     throw new Error(`爱看漫反爬校验未通过（403）：${url}`);
   }
-  if (res.status && (Number(res.status) < 200 || Number(res.status) >= 400)) {
-    throw new Error(`爱看漫请求失败（HTTP ${res.status}）：${url}`);
+  if (status && (status < 200 || status >= 400)) {
+    throw new Error(`爱看漫请求失败（HTTP ${status}）：${url}`);
   }
+}
+
+function fitToRow(list, max = 28) {
+  if (!list || list.length === 0) return [];
+  const count = Math.min(list.length, max);
+  const rows = Math.floor(count / 4);
+  return list.slice(0, Math.max(rows * 4, 4));
 }
 
 function absoluteUrl(url, baseUrl = Ikm.baseUrl) {
@@ -713,9 +743,9 @@ class Ikm extends ComicSource {
   // 基础配置
   name = "爱看漫";
   key = "ikmmh";
-  version = "1.0.6";
-  minAppVersion = "1.0.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ikmmh.js";
+  version = "1.0.7";
+  minAppVersion = "1.4.0";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ikmmh-v1.0.7/ikmmh.js";
   // 常量定义
   static baseUrl = "https://www.ikmmh.com";
   static Mobile_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
@@ -771,24 +801,16 @@ class Ikm extends ComicSource {
   account = {
     login: async (account, pwd) => {
       try {
-        let res = await Network.post(
+        let res = await validatorPost(
           `${Ikm.baseUrl}/api/user/userarr/login`,
           Ikm.jsonHead,
-          `user=${account}&pass=${pwd}`
+          `user=${encodeURIComponent(account)}&pass=${encodeURIComponent(pwd)}`
         );
         if (res.status !== 200)
           throw new Error(`登录失败，状态码：${res.status}`);
 
-        if (needPassValidator(res.body)) {
-          res = await Network.post(
-            `${Ikm.baseUrl}/api/user/userarr/login`,
-            Ikm.jsonHead,
-            `user=${account}&pass=${pwd}`
-          );
-        }
-
         let data = JSON.parse(res.body);
-        if (data.code !== 0)
+        if (data.code !== 0 && data.code !== "0")
           throw new Error(data.msg || "登录异常");
 
         return "ok";
@@ -796,7 +818,31 @@ class Ikm extends ComicSource {
         throw new Error(`登录失败：${err.message}`);
       }
     },
-    logout: () => Network.deleteCookies("www.ikmmh.com"),
+    loginWithWebview: {
+      url: `${Ikm.baseUrl}/user/login/`,
+      checkStatus: (url, title) => {
+        return (
+          !title.includes("Just a moment") &&
+          !title.includes("Cloudflare") &&
+          !title.includes("Attention Required") &&
+          (url.includes("/user/bookcase") ||
+            url.includes("/user/center") ||
+            url.endsWith("/user/") ||
+            (url.includes("/book/") && !url.includes("login")))
+        );
+      },
+      onLoginSuccess: () => {},
+    },
+    logout: () => {
+      Network.deleteCookies("www.ikmmh.com");
+      if (Ikm.baseUrl) {
+        try {
+          const domain = Ikm.baseUrl.replace(/^https?:\/\//i, "").split("/")[0];
+          Network.deleteCookies(domain);
+          Network.deleteCookies(Ikm.baseUrl);
+        } catch (_) {}
+      }
+    },
     registerWebsite: `${Ikm.baseUrl}/user/register/`,
   };
   // 探索页面
@@ -806,35 +852,46 @@ class Ikm extends ComicSource {
       type: "singlePageWithMultiPart",
       load: async () => {
         try {
-          let res = await Network.get(`${Ikm.baseUrl}/`, Ikm.webHeaders);
-          if (res.status !== 200)
-            throw new Error(`加载探索页面失败，状态码：${res.status}`);
-
-          if (needPassValidator(res.body)) {
-            res = await Network.get(`${Ikm.baseUrl}/`, Ikm.webHeaders);
-          }
-
+          let res = await validatorGet(`${Ikm.baseUrl}/`, Ikm.webHeaders);
           let document = new HtmlDocument(res.body);
-          let parseComic = (e) => {
-            let title = e.querySelector("div.title").text.split("~")[0];
-            let cover = e.querySelector("div.thumb_img").attributes["data-src"];
-            let link = `${Ikm.baseUrl}${
-              e.querySelector("a").attributes["href"]
-            }`;
-            return {
-              title,
-              cover,
-              id: link,
+          try {
+            let parseComic = (e) => {
+              let titleEl = e.querySelector("div.title");
+              let title = titleEl ? titleEl.text.split("~")[0].trim() : "";
+              let thumbEl = e.querySelector("div.thumb_img");
+              let cover = thumbEl
+                ? (thumbEl.attributes["data-src"] || thumbEl.attributes["src"] || "")
+                : "";
+              let aEl = e.querySelector("a");
+              let link = aEl
+                ? `${Ikm.baseUrl}${aEl.attributes["href"] || ""}`
+                : "";
+              return {
+                title,
+                cover,
+                id: link,
+              };
             };
-          };
-          return {
-            "本周推荐": document
-              .querySelectorAll("div.module-good-fir > div.item")
-              .map(parseComic),
-            "今日更新": document
-              .querySelectorAll("div.module-day-fir > div.item")
-              .map(parseComic),
-          };
+            return {
+              "本周推荐": fitToRow(
+                document
+                  .querySelectorAll("div.module-good-fir > div.item")
+                  .map(parseComic)
+              ),
+              "完结撒花": fitToRow(
+                document
+                  .querySelectorAll("div.module-new-fir > div.item")
+                  .map(parseComic)
+              ),
+              "今日更新": fitToRow(
+                document
+                  .querySelectorAll("div.module-day-fir > div.item")
+                  .map(parseComic)
+              ),
+            };
+          } finally {
+            document.dispose();
+          }
         } catch (err) {
           throw new Error(`探索页面加载失败：${err.message}`);
         }
@@ -901,7 +958,6 @@ class Ikm extends ComicSource {
           "性转换",
           "校园",
           "美食",
-          "悬疑",
           "剧情",
           "热血",
           "节操",
@@ -909,8 +965,7 @@ class Ikm extends ComicSource {
           "异世界",
           "历史",
           "战争",
-          "恐怖",
-          "霸总"
+          "恐怖"
         ],
         // category或者search
         // 如果为category, 点击后将进入分类漫画页面, 使用下方的`categoryComics`加载漫画
@@ -926,60 +981,52 @@ class Ikm extends ComicSource {
       try {
         let res;
         if (param) {
-          res = await Network.get(
+          res = await validatorGet(
             `${Ikm.baseUrl}/update/${param}.html`,
             Ikm.webHeaders
           );
-          if (res.status !== 200)
-            throw new Error(`分类请求失败，状态码：${res.status}`);
-
-          if (needPassValidator(res.body)) {
-            res = await Network.get(
-              `${Ikm.baseUrl}/update/${param}.html`,
-              Ikm.webHeaders
-            );
-          }
-
           let document = new HtmlDocument(res.body);
-          let comics = document.querySelectorAll("li.comic-item").map((e) => ({
-            title: e.querySelector("p.title").text.split("~")[0],
-            cover: e.querySelector("img").attributes["src"],
-            id: `${Ikm.baseUrl}${e.querySelector("a").attributes["href"]}`,
-            subTitle: e.querySelector("span.chapter").text,
-          }));
-          return {
-            comics,
-            maxPage: 1
-          };
+          try {
+            let comics = document.querySelectorAll("li.comic-item").map((e) => {
+              let titleEl = e.querySelector("p.title");
+              let imgEl = e.querySelector("img");
+              let aEl = e.querySelector("a");
+              let chapterEl = e.querySelector("span.chapter");
+              return {
+                title: titleEl ? titleEl.text.split("~")[0].trim() : "",
+                cover: imgEl ? (imgEl.attributes["data-src"] || imgEl.attributes["src"] || "") : "",
+                id: aEl ? `${Ikm.baseUrl}${aEl.attributes["href"] || ""}` : "",
+                subTitle: chapterEl ? chapterEl.text.trim() : "",
+              };
+            });
+            return {
+              comics,
+              maxPage: 1,
+            };
+          } finally {
+            document.dispose();
+          }
         } else {
-          res = await Network.post(
+          const full = options && options[0] ? String(options[0]).split("-")[0] : "3";
+          const area = options && options[1] ? String(options[1]).split("-")[0] : "9";
+          const tag = (!category || category === "全部") ? "全部" : category;
+          res = await validatorPost(
             `${Ikm.baseUrl}/api/comic/index/lists`,
             Ikm.jsonHead,
-            `area=${options[1]}&tags=${encodeURIComponent(category)}&full=${
-              options[0]
-            }&page=${page}`
+            `area=${encodeURIComponent(area)}&tags=${encodeURIComponent(tag)}&full=${encodeURIComponent(full)}&page=${page}`
           );
-
-          if (needPassValidator(res.body)) {
-            res = await Network.post(
-              `${Ikm.baseUrl}/api/comic/index/lists`,
-              Ikm.jsonHead,
-              `area=${options[1]}&tags=${encodeURIComponent(category)}&full=${options[0]
-              }&page=${page}`
-            );
-          }
-
           let resData = JSON.parse(res.body);
+          const endPage = parseInt(resData.end, 10);
           return {
-            comics: resData.data.map((e) => ({
-              id: `${Ikm.baseUrl}${e.info_url}`,
-              title: e.name.split("~")[0],
-              subTitle: e.author,
-              cover: e.cover,
-              tags: e.tags,
-              description: e.lastchapter,
+            comics: (resData.data || []).map((e) => ({
+              id: `${Ikm.baseUrl}${e.info_url || ""}`,
+              title: (e.name || "").split("~")[0].trim(),
+              subTitle: e.author || "",
+              cover: e.cover || "",
+              tags: Array.isArray(e.tags) ? e.tags : (e.tags ? [e.tags] : []),
+              description: e.lastchapter || "",
             })),
-            maxPage: resData.end || 1,
+            maxPage: !isNaN(endPage) && endPage > 0 ? endPage : 1,
           };
         }
       } catch (err) {
@@ -1028,28 +1075,49 @@ class Ikm extends ComicSource {
   search = {
     load: async (keyword, options, page) => {
       try {
-        let res = await Network.get(
-          `${Ikm.baseUrl}/search?searchkey=${encodeURIComponent(keyword)}`,
+        if (!keyword || !keyword.trim()) {
+          return { comics: [], maxPage: 1 };
+        }
+        const trimmed = keyword.trim();
+        const p = page && !isNaN(parseInt(page, 10)) ? parseInt(page, 10) : 1;
+        let res = await validatorGet(
+          `${Ikm.baseUrl}/search?searchkey=${encodeURIComponent(trimmed)}&page=${p}`,
           Ikm.webHeaders
         );
 
-        if (needPassValidator(res.body)) {
-          res = await Network.get(
-            `${Ikm.baseUrl}/search?searchkey=${encodeURIComponent(keyword)}`,
-            Ikm.webHeaders
-          );
+        const body = String(res.body || "");
+        if (
+          body.includes("暂无漫画") ||
+          body.includes("暫無漫畫") ||
+          body.includes("无搜索结果") ||
+          body.includes("抱歉，没有找到")
+        ) {
+          return { comics: [], maxPage: 1 };
         }
 
         let document = new HtmlDocument(res.body);
-        return {
-          comics: document.querySelectorAll("li.comic-item").map((e) => ({
-            title: e.querySelector("p.title").text.split("~")[0],
-            cover: e.querySelector("img").attributes["src"],
-            id: `${Ikm.baseUrl}${e.querySelector("a").attributes["href"]}`,
-            subTitle: e.querySelector("span.chapter").text,
-          })),
-          maxPage: 1,
-        };
+        try {
+          let comics = document.querySelectorAll("li.comic-item").map((e) => {
+            let titleEl = e.querySelector("p.title");
+            let imgEl = e.querySelector("img");
+            let aEl = e.querySelector("a");
+            let chapterEl = e.querySelector("span.chapter");
+            return {
+              title: titleEl ? titleEl.text.split("~")[0].trim() : "",
+              cover: imgEl ? (imgEl.attributes["data-src"] || imgEl.attributes["src"] || "") : "",
+              id: aEl ? `${Ikm.baseUrl}${aEl.attributes["href"] || ""}` : "",
+              subTitle: chapterEl ? chapterEl.text.trim() : "",
+            };
+          });
+
+          const maxPage = comics.length >= 100 ? (p + 1) : p;
+          return {
+            comics,
+            maxPage,
+          };
+        } finally {
+          document.dispose();
+        }
       } catch (err) {
         throw new Error(`搜索失败：${err.message}`);
       }
@@ -1062,42 +1130,35 @@ class Ikm extends ComicSource {
     multiFolder: false,
     addOrDelFavorite: async (comicId, folderId, isAdding) => {
       try {
-        let id = comicId.match(/\d+/)[0];
+        let idMatch = String(comicId || "").match(/\d+/);
+        if (!idMatch) throw new Error("无效的漫画ID");
+        let id = idMatch[0];
         if (isAdding) {
-          let infoRes = await Network.get(comicId, Ikm.webHeaders);
-
-          if (needPassValidator(infoRes.body)) {
-            infoRes = await Network.get(comicId, Ikm.webHeaders);
+          let infoRes = await validatorGet(comicId, Ikm.webHeaders);
+          let doc = new HtmlDocument(infoRes.body);
+          let name = "";
+          try {
+            let meta = doc.querySelector("meta[property='og:title']");
+            name = meta?.attributes?.["content"] || "";
+          } finally {
+            doc.dispose();
           }
-
-          let name = new HtmlDocument(infoRes.body).querySelector(
-            "meta[property='og:title']"
-          ).attributes["content"];
-          let res = await Network.post(
+          let res = await validatorPost(
             `${Ikm.baseUrl}/api/user/bookcase/add`,
             Ikm.jsonHead,
-            `articleid=${id}&articlename=${encodeURIComponent(name)}`
+            `articleid=${encodeURIComponent(id)}&articlename=${encodeURIComponent(name)}`
           );
           let data = JSON.parse(res.body);
-          if (data.code !== "0") throw new Error(data.msg || "收藏失败");
+          if (data.code !== 0 && data.code !== "0") throw new Error(data.msg || "收藏失败");
           return "ok";
         } else {
-          let res = await Network.post(
+          let res = await validatorPost(
             `${Ikm.baseUrl}/api/user/bookcase/del`,
             Ikm.jsonHead,
-            `articleid=${id}`
+            `articleid=${encodeURIComponent(id)}`
           );
-
-          if (needPassValidator(res.body)) {
-            res = await Network.post(
-              `${Ikm.baseUrl}/api/user/bookcase/del`,
-              Ikm.jsonHead,
-              `articleid=${id}`
-            );
-          }
-
           let data = JSON.parse(res.body);
-          if (data.code !== "0") throw new Error(data.msg || "取消收藏失败");
+          if (data.code !== 0 && data.code !== "0") throw new Error(data.msg || "取消收藏失败");
           return "ok";
         }
       } catch (err) {
@@ -1105,31 +1166,34 @@ class Ikm extends ComicSource {
       }
     },
     loadComics: async (page, folder) => {
-      let res = await Network.get(
+      let res = await validatorGet(
         `${Ikm.baseUrl}/user/bookcase`,
         Ikm.webHeaders
       );
       if (res.status !== 200) {
-        throw "加载收藏失败：" + res.status;
-      }
-
-      if (needPassValidator(res.body)) {
-        res = await Network.get(
-          `${Ikm.baseUrl}/user/bookcase`,
-          Ikm.webHeaders
-        );
+        throw new Error("加载收藏失败：" + res.status);
       }
 
       let document = new HtmlDocument(res.body);
-      return {
-        comics: document.querySelectorAll("div.bookrack-item").map((e) => ({
-          title: e.querySelector("h3").text.split("~")[0],
-          subTitle: e.querySelector("p.desc").text,
-          cover: e.querySelector("img").attributes["src"],
-          id: `${Ikm.baseUrl}/book/${e.attributes["data-id"]}/`,
-        })),
-        maxPage: 1,
-      };
+      try {
+        return {
+          comics: document.querySelectorAll("div.bookrack-item").map((e) => {
+            const titleEl = e.querySelector("h3");
+            const descEl = e.querySelector("p.desc");
+            const imgEl = e.querySelector("img");
+            const dataId = e.attributes ? e.attributes["data-id"] : "";
+            return {
+              title: titleEl ? titleEl.text.split("~")[0].trim() : "",
+              subTitle: descEl ? descEl.text.trim() : "",
+              cover: imgEl ? (imgEl.attributes["data-src"] || imgEl.attributes["src"] || "") : "",
+              id: `${Ikm.baseUrl}/book/${dataId}/`,
+            };
+          }),
+          maxPage: 1,
+        };
+      } finally {
+        document.dispose();
+      }
     },
     onThumbnailLoad: Ikm.thumbConfig,
   };
@@ -1141,80 +1205,100 @@ class Ikm extends ComicSource {
         let favorites = await this.favorites.loadComics(1, null);
         isFavorite = favorites.comics.some((comic) => comic.id === id);
       } catch (error) {
-        console.error("加载收藏页失败:", error);
+        // 未登录或加载收藏失败时忽略
       }
       let res = await validatorGet(id, Ikm.webHeaders);
 
       let document = new HtmlDocument(res.body);
-      let comicId = id.match(/\d+/)[0];
-      let epRes = await validatorGet(
-        `${Ikm.baseUrl}/api/comic/zyz/chapterlink?id=${comicId}`,
-        {
-          ...Ikm.jsonHead,
-          "referer": id,
-        }
-      );
-      let epData = parseJsonResponse(epRes, "章节接口");
-      let eps = new Map();
-      let chapterGroups = Array.isArray(epData.data)
-        ? epData.data
-        : epData.data
-          ? [epData.data]
-          : [];
-      chapterGroups.forEach((group) => {
-        let list = Array.isArray(group) ? group : group.list || group.chapters || [];
-        list.forEach((e) => {
-          let chapterUrl = absoluteUrl(e.url || e.link || e.href);
-          if (chapterUrl) eps.set(chapterUrl, e.name || e.title || "未命名章节");
+      try {
+        let comicIdMatch = String(id || "").match(/\d+/);
+        if (!comicIdMatch) throw new Error("无法提取漫画ID");
+        let comicId = comicIdMatch[0];
+        let epRes = await validatorGet(
+          `${Ikm.baseUrl}/api/comic/zyz/chapterlink?id=${comicId}`,
+          {
+            ...Ikm.jsonHead,
+            "referer": id,
+          }
+        );
+        let epData = parseJsonResponse(epRes, "章节接口");
+        let eps = new Map();
+        let chapterGroups = Array.isArray(epData.data)
+          ? epData.data
+          : epData.data
+            ? [epData.data]
+            : [];
+        chapterGroups.forEach((group) => {
+          let list = Array.isArray(group) ? group : group.list || group.chapters || [];
+          list.forEach((e) => {
+            let chapterUrl = absoluteUrl(e.url || e.link || e.href);
+            if (chapterUrl) eps.set(chapterUrl, e.name || e.title || "未命名章节");
+          });
         });
-      });
-      if (eps.size === 0) {
-        throw new Error(`章节数据格式异常`);
-      }
+        if (eps.size === 0) {
+          throw new Error(`章节数据格式异常`);
+        }
 
-      let title = document.querySelector(
-        "div.book-hero__detail > div.title"
-      ).text;
-      let escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      let thumb =
-        document
-          .querySelector("div.coverimg")
-          .attributes["style"].match(/\((.*?)\)/)?.[1] || "";
-      let desc = document
-        .querySelector("article.book-container__detail")
-        .text.match(
+        let titleEl = document.querySelector("div.book-hero__detail > div.title");
+        let title = titleEl ? titleEl.text.trim() : "";
+        let escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        let coverImgEl = document.querySelector("div.coverimg");
+        let thumb = coverImgEl?.attributes?.["style"]?.match(/\((.*?)\)/)?.[1] || "";
+
+        let introEl = document.querySelector("article.book-container__detail");
+        let introText = introEl ? introEl.text.trim() : "";
+        let descMatch = introText.match(
           new RegExp(
             `漫画名：${escapedTitle}(?:(?:[^。]*?(?:简介|漫画简介)\\s*[:：]?\\s*)|(?:[^。]*?))([\\s\\S]+?)\\.\\.\\.。`
           )
         );
-      let intro = desc?.[1]?.trim().replace(/\s+/g, " ") || "";
+        let intro = (descMatch?.[1] || introText).trim().replace(/\s+/g, " ");
 
-      return {
-        title: title.split("~")[0],
-        cover: thumb,
-        description: intro,
-        tags: {
-          "作者": [
-            document
-              .querySelector("div.book-container__author")
-              .text.split("作者：")[1],
-          ],
-          "更新": [document.querySelector("div.update > a > em").text],
-          "标签": document
-            .querySelectorAll("div.book-hero__detail > div.tags > a")
-            .map((e) => e.text.trim())
-            .filter((text) => text),
-        },
-        chapters: eps,
-        recommend: document
+        let authorEl = document.querySelector("div.book-container__author");
+        let authorText = authorEl ? authorEl.text.trim() : "";
+        let author = authorText.includes("作者：")
+          ? authorText.split("作者：")[1].trim()
+          : authorText;
+
+        let updateEl = document.querySelector("div.update > a > em");
+        let updateText = updateEl ? updateEl.text.trim() : "";
+
+        let tags = document
+          .querySelectorAll("div.book-hero__detail > div.tags > a")
+          .map((e) => e.text.trim())
+          .filter((text) => text);
+
+        let recommend = document
           .querySelectorAll("div.module-guessu > div.item")
-          .map((e) => ({
-            title: e.querySelector("div.title").text.split("~")[0],
-            cover: e.querySelector("div.thumb_img").attributes["data-src"],
-            id: `${Ikm.baseUrl}${e.querySelector("a").attributes["href"]}`,
-          })),
-        isFavorite: isFavorite,
-      };
+          .map((e) => {
+            let recTitleEl = e.querySelector("div.title");
+            let recThumbEl = e.querySelector("div.thumb_img");
+            let recAEl = e.querySelector("a");
+            return {
+              title: recTitleEl ? recTitleEl.text.split("~")[0].trim() : "",
+              cover: recThumbEl
+                ? (recThumbEl.attributes["data-src"] || recThumbEl.attributes["src"] || "")
+                : "",
+              id: recAEl ? `${Ikm.baseUrl}${recAEl.attributes["href"] || ""}` : "",
+            };
+          });
+
+        return {
+          title: title.split("~")[0].trim(),
+          cover: thumb,
+          description: intro,
+          tags: {
+            "作者": author ? [author] : [],
+            "更新": updateText ? [updateText] : [],
+            "标签": tags,
+          },
+          chapters: eps,
+          recommend: recommend,
+          isFavorite: isFavorite,
+        };
+      } finally {
+        document.dispose();
+      }
     },
     onThumbnailLoad: Ikm.thumbConfig,
     loadEp: async (comicId, epId) => {
@@ -1226,104 +1310,108 @@ class Ikm extends ComicSource {
         let res = await validatorGet(epId, chapterHeaders);
 
         let document = new HtmlDocument(res.body);
-        const lockedPlaceholderCount = countLockedReaderPlaceholders(res.body);
-        let strictImages = filterReaderImages(
-          collectImagesFromElements(document, epId, true),
-          res.body
-        );
-        let images = strictImages.slice();
-        let scriptImages = collectImagesFromScripts(
-          extractScriptText(document, res.body),
-          epId
-        );
-        scriptImages.forEach((url) => addImageUrl(images, url, epId));
-        images = filterReaderImages(images, res.body);
-        let readApiDebug = "read api not tried";
-
-        if (strictImages.length === 0 && !looksLikeReaderSet(images, "fallback")) {
-          let fallbackImages = filterReaderImages(
-            collectImagesFromElements(document, epId, false),
+        try {
+          const lockedPlaceholderCount = countLockedReaderPlaceholders(res.body);
+          let strictImages = filterReaderImages(
+            collectImagesFromElements(document, epId, true),
             res.body
           );
-          fallbackImages.forEach((url) => addImageUrl(images, url, epId));
+          let images = strictImages.slice();
+          let scriptImages = collectImagesFromScripts(
+            extractScriptText(document, res.body),
+            epId
+          );
+          scriptImages.forEach((url) => addImageUrl(images, url, epId));
           images = filterReaderImages(images, res.body);
-        }
+          let readApiDebug = "read api not tried";
 
-        if (!looksLikeReaderSet(images, "fallback")) {
-          const readConfig = extractReadConfig(res.body) || readConfigFromIds(comicId, epId);
-          if (readConfig) {
-            readApiDebug = `read api try id=${readConfig.apiCid || readConfig.cid}, aid=${readConfig.aid}`;
-            if (shouldUseReadPicsApi(readConfig)) {
-              const readPicsImages = await fetchReadPicsImages(readConfig, epId);
-              readApiDebug += `; readPics=${readPicsImages.length}`;
-              readPicsImages.forEach((url) =>
-                addImageUrl(images, url, epId)
-              );
-              images = filterReaderImages(images, res.body);
-            }
-          }
-        }
-
-        if (!looksLikeReaderSet(images, "fallback")) {
-          const readConfig = extractReadConfig(res.body) || readConfigFromIds(comicId, epId);
-          if (readConfig) {
-            if (readApiDebug === "read api not tried") {
-              readApiDebug = `read api try id=${readConfig.apiCid || readConfig.cid}, aid=${readConfig.aid}`;
-            }
-            const readRes = await validatorPost(
-              `${Ikm.baseUrl}/api/comic/read/index`,
-              {
-                ...Ikm.jsonHead,
-                "referer": epId,
-              },
-              `id=${encodeURIComponent(readConfig.apiCid || readConfig.cid)}&aid=${encodeURIComponent(readConfig.aid)}`
+          if (strictImages.length === 0 && !looksLikeReaderSet(images, "fallback")) {
+            let fallbackImages = filterReaderImages(
+              collectImagesFromElements(document, epId, false),
+              res.body
             );
-            const apiImages = parseReadApiImages(readRes, epId);
-            readApiDebug += `; status=${readRes.status || "?"}; apiImages=${apiImages.length}; preview=${String(readRes.body || "").slice(0, 120)}`;
-            apiImages.forEach((url) =>
-              addImageUrl(images, url, epId)
-            );
+            fallbackImages.forEach((url) => addImageUrl(images, url, epId));
             images = filterReaderImages(images, res.body);
-            if (!looksLikeReaderSet(images, "fallback")) {
-              if (lockedPlaceholderCount >= 3) {
-                throw new Error(
-                  `该章节页面没有下发正文图片，只返回了 ${lockedPlaceholderCount} 张未解锁/VIP 占位图（/static/msnot_vip.png）。这不是图片地址规则问题，脚本不能凭空获取未下发的正文图。`
+          }
+
+          if (!looksLikeReaderSet(images, "fallback")) {
+            const readConfig = extractReadConfig(res.body) || readConfigFromIds(comicId, epId);
+            if (readConfig) {
+              readApiDebug = `read api try id=${readConfig.apiCid || readConfig.cid}, aid=${readConfig.aid}`;
+              if (shouldUseReadPicsApi(readConfig)) {
+                const readPicsImages = await fetchReadPicsImages(readConfig, epId);
+                readApiDebug += `; readPics=${readPicsImages.length}`;
+                readPicsImages.forEach((url) =>
+                  addImageUrl(images, url, epId)
                 );
+                images = filterReaderImages(images, res.body);
               }
-              const canonicalChapterName = canBuildImagesFromReadConfig(readConfig)
-                ? await fetchCanonicalChapterName(readConfig, epId)
-                : "";
-              const generatorConfig = canonicalChapterName
-                ? { ...readConfig, chaptername: canonicalChapterName }
-                : readConfig;
-              const generatedImages = buildImagesFromReadConfig(generatorConfig);
-              readApiDebug += `; canonical=${canonicalChapterName || "-"}; generated=${generatedImages.length}`;
-              generatedImages.forEach((url) =>
+            }
+          }
+
+          if (!looksLikeReaderSet(images, "fallback")) {
+            const readConfig = extractReadConfig(res.body) || readConfigFromIds(comicId, epId);
+            if (readConfig) {
+              if (readApiDebug === "read api not tried") {
+                readApiDebug = `read api try id=${readConfig.apiCid || readConfig.cid}, aid=${readConfig.aid}`;
+              }
+              const readRes = await validatorPost(
+                `${Ikm.baseUrl}/api/comic/read/index`,
+                {
+                  ...Ikm.jsonHead,
+                  "referer": epId,
+                },
+                `id=${encodeURIComponent(readConfig.apiCid || readConfig.cid)}&aid=${encodeURIComponent(readConfig.aid)}`
+              );
+              const apiImages = parseReadApiImages(readRes, epId);
+              readApiDebug += `; status=${readRes.status || "?"}; apiImages=${apiImages.length}; preview=${String(readRes.body || "").slice(0, 120)}`;
+              apiImages.forEach((url) =>
                 addImageUrl(images, url, epId)
               );
               images = filterReaderImages(images, res.body);
+              if (!looksLikeReaderSet(images, "fallback")) {
+                if (lockedPlaceholderCount >= 3) {
+                  throw new Error(
+                    `该章节页面没有下发正文图片，只返回了 ${lockedPlaceholderCount} 张未解锁/VIP 占位图（/static/msnot_vip.png）。这不是图片地址规则问题，脚本不能凭空获取未下发的正文图。`
+                  );
+                }
+                const canonicalChapterName = canBuildImagesFromReadConfig(readConfig)
+                  ? await fetchCanonicalChapterName(readConfig, epId)
+                  : "";
+                const generatorConfig = canonicalChapterName
+                  ? { ...readConfig, chaptername: canonicalChapterName }
+                  : readConfig;
+                const generatedImages = buildImagesFromReadConfig(generatorConfig);
+                readApiDebug += `; canonical=${canonicalChapterName || "-"}; generated=${generatedImages.length}`;
+                generatedImages.forEach((url) =>
+                  addImageUrl(images, url, epId)
+                );
+                images = filterReaderImages(images, res.body);
+              }
+            } else {
+              readApiDebug = `read api skipped; comicId=${String(comicId || "").slice(0, 80)}; epId=${String(epId || "").slice(0, 80)}; html=${String(res.body || "").slice(0, 120)}`;
             }
-          } else {
-            readApiDebug = `read api skipped; comicId=${String(comicId || "").slice(0, 80)}; epId=${String(epId || "").slice(0, 80)}; html=${String(res.body || "").slice(0, 120)}`;
           }
-        }
 
-        if (
-          strictImages.length === 0 &&
-          !looksLikeReaderSet(images, "fallback")
-        ) {
-          throw new Error(`没有找到可靠的正文漫画图片；候选 ${images.length} 张；${readApiDebug}`);
-        }
+          if (
+            strictImages.length === 0 &&
+            !looksLikeReaderSet(images, "fallback")
+          ) {
+            throw new Error(`没有找到可靠的正文漫画图片；候选 ${images.length} 张；${readApiDebug}`);
+          }
 
-        if (
-          strictImages.length === 0 &&
-          !looksLikeReaderSet(images, "fallback")
-        ) {
-          throw new Error(`页面中没有找到可靠的正文漫画图片；已排除封面、推荐图、占位图和少量杂图（候选 ${images.length} 张）`);
+          if (
+            strictImages.length === 0 &&
+            !looksLikeReaderSet(images, "fallback")
+          ) {
+            throw new Error(`页面中没有找到可靠的正文漫画图片；已排除封面、推荐图、占位图和少量杂图（候选 ${images.length} 张）`);
+          }
+          return {
+            images,
+          };
+        } finally {
+          document.dispose();
         }
-        return {
-          images,
-        };
       } catch (err) {
         throw new Error(`加载章节失败：${err.message}`);
       }
