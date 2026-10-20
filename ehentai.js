@@ -23,12 +23,12 @@ class Ehentai extends ComicSource {
     // unique id of the source
     key = "ehentai"
 
-    version = "1.2.1"
+    version = "1.2.2"
 
     minAppVersion = "1.5.3"
 
     // update url (必须锁定带有源 key 前缀的固定 Git Tag，严禁使用 @main)
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.1/ehentai.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.2/ehentai.js"
 
     /**
      * cached api key
@@ -433,7 +433,7 @@ class Ehentai extends ComicSource {
     }
 
     // explore page list
-    // 发现页规范：首个标签与漫画源同名 (ehentai)
+    // 发现页规范：仅保留唯一标签，且与漫画源同名 (ehentai)
     explore = [
         {
             // title of the page.
@@ -445,37 +445,6 @@ class Ehentai extends ComicSource {
 
             loadNext: (next) => {
                 return this.getGalleries(next ?? this.baseUrl, false);
-            }
-        },
-        {
-            // title of the page.
-            // title is used to identify the page, it should be unique
-            title: "popular",
-
-            /// multiPartPage or multiPageComicList or mixed
-            type: "multiPageComicList",
-
-            loadNext: (next) => {
-                return this.getGalleries(next ?? `${this.baseUrl}/popular`, false);
-            }
-        },
-        {
-            // title of the page.
-            // title is used to identify the page, it should be unique
-            title: "watched",
-
-            /// multiPartPage or multiPageComicList or mixed
-            type: "multiPageComicList",
-
-            loadNext: async (next) => {
-                if (!this.isLogged) {
-                    UI.showMessage("Need login first");
-                    return {
-                        comics: [],
-                        next: null
-                    };
-                }
-                return this.getGalleries(next ?? `${this.baseUrl}/watched`, false);
             }
         },
     ]
