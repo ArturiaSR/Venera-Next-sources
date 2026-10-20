@@ -435,7 +435,8 @@ async function get_single_galleryblock(gid) {
 
 async function get_galleryblocks(gids) {
   if (gids.length > 25) throw new Error("Be careful: too many blocks");
-  return await Promise.all(gids.map((n) => get_single_galleryblock(n)));
+  const list = await Promise.all(gids.map((n) => get_single_galleryblock(n)));
+  return list.filter((n) => Boolean(n));
 }
 
 /**
@@ -792,7 +793,7 @@ async function search(options) {
       options.orderbydirection === "random"
         ? shuffleArray(gids)
         : options.orderbydirection === "asc"
-        ? gids.toReversed()
+        ? gids.slice().reverse()
         : gids;
     return {
       type: "all",
@@ -804,96 +805,104 @@ async function search(options) {
 
 function parseGalleryBlockInfo(body) {
   const mangaEl = new HtmlDocument(body);
+  try {
+    // 标题和详情页链接
+    const titleLink = mangaEl.querySelector("h1.lillie > a");
+    if (!titleLink) return null;
+    const href = titleLink.attributes["href"] || "";
+    const mGid = /-(\d+)\.html$/.exec(href);
+    const gid = mGid ? mGid[1] : "";
+    const title = titleLink.text ? titleLink.text.trim() : "";
 
-  // 标题和详情页链接
-  const titleLink = mangaEl.querySelector("h1.lillie > a");
-  const gid = /-(\d+)\.html$/.exec(titleLink.attributes["href"]).at(1);
-  const title = titleLink.text;
-
-  // 封面图URL
-  const thumbnail_hashs = [];
-  const srcs = Array.from(mangaEl.querySelectorAll("img")).map((a) =>
-    a.attributes["data-src"].trim()
-  );
-  srcs.forEach((src) => {
-    const r = /\/(\w{64})\./.exec(src);
-    if (r) {
-      const hash = r[1];
-      thumbnail_hashs.push(hash);
-    }
-  });
-
-  // 作者列表
-  const artists = Array.from(mangaEl.querySelectorAll(".artist-list li a")).map(
-    (a) => a.text.trim()
-  );
-
-  let language = undefined;
-  let series = [];
-  let type = undefined;
-  // 描述表格：Series / Type / Language
-  const rows = mangaEl.querySelectorAll(".dj-desc tr");
-  rows.forEach((row) => {
-    const key = row.children[0].text.trim().toLowerCase();
-    const valueCell = row.children[1];
-    switch (key) {
-      case "series": {
-        const text = valueCell.text.trim();
-        if (text !== "N/A") {
-          const as = valueCell.querySelectorAll("a");
-          as.forEach((a) => series.push(a.text.trim()));
-        }
-        break;
+    // 封面图URL
+    const thumbnail_hashs = [];
+    const srcs = Array.from(mangaEl.querySelectorAll("img")).map((a) =>
+      (a.attributes["data-src"] || a.attributes["src"] || "").trim()
+    );
+    srcs.forEach((src) => {
+      const r = /\/(\w{64})\./.exec(src);
+      if (r) {
+        const hash = r[1];
+        thumbnail_hashs.push(hash);
       }
-      case "type": {
-        type = valueCell.text.trim();
-        break;
-      }
-      case "language": {
-        if (valueCell.querySelector("a")) {
-          const href = valueCell.querySelector("a").attributes["href"];
-          const r = /\/index-(\w+)\.html/.exec(href);
-          if (r) {
-            language = r[1];
+    });
+
+    // 作者列表
+    const artists = Array.from(mangaEl.querySelectorAll(".artist-list li a")).map(
+      (a) => a.text.trim()
+    );
+
+    let language = undefined;
+    let series = [];
+    let type = undefined;
+    // 描述表格：Series / Type / Language
+    const rows = mangaEl.querySelectorAll(".dj-desc tr");
+    rows.forEach((row) => {
+      if (!row.children || row.children.length < 2) return;
+      const key = row.children[0].text.trim().toLowerCase();
+      const valueCell = row.children[1];
+      switch (key) {
+        case "series": {
+          const text = valueCell.text.trim();
+          if (text !== "N/A") {
+            const as = valueCell.querySelectorAll("a");
+            as.forEach((a) => series.push(a.text.trim()));
           }
+          break;
         }
-        break;
+        case "type": {
+          type = valueCell.text.trim();
+          break;
+        }
+        case "language": {
+          if (valueCell.querySelector("a")) {
+            const hrefVal = valueCell.querySelector("a").attributes["href"] || "";
+            const r = /\/index-(\w+)\.html/.exec(hrefVal);
+            if (r) {
+              language = r[1];
+            }
+          }
+          break;
+        }
       }
-    }
-  });
+    });
 
-  // 标签列表
-  const females = [];
-  const males = [];
-  const others = [];
-  Array.from(mangaEl.querySelectorAll(".relatedtags li a")).map((a) => {
-    const text = a.text.trim();
-    if (text.endsWith(" ♀")) {
-      females.push(text.slice(0, -2));
-    } else if (text.endsWith(" ♂")) {
-      males.push(text.slice(0, -2));
-    } else {
-      others.push(text);
-    }
-  });
+    // 标签列表
+    const females = [];
+    const males = [];
+    const others = [];
+    Array.from(mangaEl.querySelectorAll(".relatedtags li a")).map((a) => {
+      const text = a.text.trim();
+      if (text.endsWith(" ♀")) {
+        females.push(text.slice(0, -2));
+      } else if (text.endsWith(" ♂")) {
+        males.push(text.slice(0, -2));
+      } else {
+        others.push(text);
+      }
+    });
 
-  // 发布日期（原始字符串）
-  const postedRaw = mangaEl.querySelector(".date").text.trim();
-  const posted_time = new Date(toISO8601(postedRaw));
+    // 发布日期（原始字符串）
+    const dateEl = mangaEl.querySelector(".date");
+    const postedRaw = dateEl ? dateEl.text.trim() : "";
+    const posted_time = postedRaw ? new Date(toISO8601(postedRaw)) : new Date();
 
-  return {
-    gid,
-    title,
-    type,
-    language,
-    artists,
-    series,
-    females,
-    males,
-    others,
-    thumbnail_hashs,
-    posted_time,
-  };
+    return {
+      gid,
+      title,
+      type,
+      language,
+      artists,
+      series,
+      females,
+      males,
+      others,
+      thumbnail_hashs,
+      posted_time,
+    };
+  } finally {
+    mangaEl.dispose();
+  }
 }
 
 function parseGalleryDetail(text) {
@@ -995,12 +1004,12 @@ class Hitomi extends ComicSource {
   // unique id of the source
   key = "hitomi";
 
-  version = "1.1.2";
+  version = "1.1.3";
 
   minAppVersion = "1.4.6";
 
   // update url
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hitomi.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hitomi-v1.1.3/hitomi.js";
 
   galleryCache = [];
   categoryResultCache = undefined;
@@ -1011,7 +1020,9 @@ class Hitomi extends ComicSource {
       id: n.gid,
       title: n.title,
       subTitle: n.artists.length ? n.artists.join(" ") : "",
-      cover: get_thumbnail_url_from_hash(n.thumbnail_hashs[0], true),
+      cover: (n.thumbnail_hashs && n.thumbnail_hashs.length > 0)
+        ? get_thumbnail_url_from_hash(n.thumbnail_hashs[0], true)
+        : "",
       tags: [
         ...n.series,
         ...n.females.map((m) => "f:" + m),
@@ -1021,7 +1032,7 @@ class Hitomi extends ComicSource {
       language: n.language,
       description: n.type
         ? n.type + "\n" + formatDate(n.posted_time)
-        : n.posted_time,
+        : formatDate(n.posted_time),
     });
   }
 
@@ -1068,7 +1079,7 @@ class Hitomi extends ComicSource {
 
         return {
           comics,
-          maxPage: Math.ceil(result.count / 25),
+          maxPage: Math.max(1, Math.ceil(result.count / 25) || 1),
         };
       },
 
@@ -1174,7 +1185,7 @@ class Hitomi extends ComicSource {
           };
           return {
             comics,
-            maxPage: Math.ceil(result.count / 25),
+            maxPage: Math.max(1, Math.ceil(result.count / 25) || 1),
           };
         } else {
           const comics = (
@@ -1189,7 +1200,7 @@ class Hitomi extends ComicSource {
           };
           return {
             comics,
-            maxPage: Math.ceil(result.count / 25),
+            maxPage: Math.max(1, Math.ceil(result.count / 25) || 1),
           };
         }
       } else {
@@ -1203,7 +1214,7 @@ class Hitomi extends ComicSource {
           );
           return {
             comics,
-            maxPage: Math.ceil(this.categoryResultCache.count / 25),
+            maxPage: Math.max(1, Math.ceil((this.categoryResultCache.count || 0) / 25) || 1),
           };
         } else {
           const comics = (
@@ -1213,7 +1224,7 @@ class Hitomi extends ComicSource {
           ).map((n) => this._mapGalleryBlockInfoToComic(n));
           return {
             comics,
-            maxPage: Math.ceil(this.categoryResultCache.count / 25),
+            maxPage: Math.max(1, Math.ceil((this.categoryResultCache.count || 0) / 25) || 1),
           };
         }
       }
@@ -1266,7 +1277,7 @@ class Hitomi extends ComicSource {
 
         return {
           comics,
-          maxPage: Math.ceil(result.count / 25),
+          maxPage: Math.max(1, Math.ceil(result.count / 25) || 1),
         };
       },
     },
@@ -1331,7 +1342,7 @@ class Hitomi extends ComicSource {
           });
           return {
             comics,
-            maxPage: Math.ceil(result.count / 25),
+            maxPage: Math.max(1, Math.ceil(result.count / 25) || 1),
           };
         } else {
           const comics = (
@@ -1346,7 +1357,7 @@ class Hitomi extends ComicSource {
           });
           return {
             comics,
-            maxPage: Math.ceil(result.count / 25),
+            maxPage: Math.max(1, Math.ceil(result.count / 25) || 1),
           };
         }
       } else {
@@ -1361,7 +1372,7 @@ class Hitomi extends ComicSource {
           );
           return {
             comics,
-            maxPage: Math.ceil(searchResultCache.count / 25),
+            maxPage: Math.max(1, Math.ceil((searchResultCache.count || 0) / 25) || 1),
           };
         } else {
           const comics = (
@@ -1371,7 +1382,7 @@ class Hitomi extends ComicSource {
           ).map((n) => this._mapGalleryBlockInfoToComic(n));
           return {
             comics,
-            maxPage: Math.ceil(searchResultCache.count / 25),
+            maxPage: Math.max(1, Math.ceil((searchResultCache.count || 0) / 25) || 1),
           };
         }
       }
@@ -1441,7 +1452,7 @@ class Hitomi extends ComicSource {
           break;
       }
       // return the text to insert into search box
-      return `${fixedNamespace}:${tag.replaceAll(" ", "_")}`;
+      return `${fixedNamespace}:${tag.replace(/ /g, "_")}`;
     },
   };
 
@@ -1494,7 +1505,11 @@ class Hitomi extends ComicSource {
      * @returns {Promise<{images: string[]}>}
      */
     loadEp: async (comicId, epId) => {
-      const data = this.galleryCache;
+      let data = this.galleryCache;
+      if (!data || String(data.gid) !== String(comicId)) {
+        data = await get_gallery_detail(comicId);
+        this.galleryCache = data;
+      }
       if (data.type === "anime") throw new Error("不支持视频浏览");
       const images = await get_image_srcs(data.files);
       return { images };
@@ -1566,7 +1581,7 @@ class Hitomi extends ComicSource {
       if (!fixedNamespace) {
         throw new Error("不支持的标签命名空间: " + namespace);
       }
-      const keyword = fixedNamespace + ":" + tag.replaceAll(" ", "_");
+      const keyword = fixedNamespace + ":" + tag.replace(/ /g, "_");
       return {
         page: "search",
         attributes: {
