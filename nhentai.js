@@ -7,12 +7,12 @@ class Nhentai extends ComicSource {
     // unique id of the source
     key = "nhentai"
 
-    version = "1.1.1"
+    version = "1.1.2"
 
     minAppVersion = "1.0.0"
 
     // update url
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.1/nhentai.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.2/nhentai.js"
 
     baseUrl = "https://nhentai.net"
     apiBaseUrl = "https://nhentai.net/api/v2"
@@ -546,61 +546,54 @@ class Nhentai extends ComicSource {
             // title is used to identify the page, it should be unique
             title: "nhentai",
 
-            /// multiPartPage or multiPageComicList or mixed
-            type: "mixed",
+            /// multiPartPage
+            type: "multiPartPage",
 
             /**
              * load function
-             * @param page {number | null} - page number, null for `singlePageWithMultiPart` type
-             * @returns {{}}
+             * @returns {Promise<Array<{title: string, comics: Comic[], viewMore: any}>>}
              */
-            load: async (page) => {
-                let currentPage = page || 1;
+            load: async () => {
                 let data = [];
 
-                if (currentPage === 1) {
-                    try {
-                        let popular;
-                        if (this.popularCache) {
-                            popular = this.popularCache;
-                        } else {
-                            let res = await Network.get(
-                                `${this.apiBaseUrl}/galleries/popular`,
-                                this.getApiBaseHeaders()
-                            );
-                            if (res.status === 200) {
-                                popular = JSON.parse(res.body);
-                                this.popularCache = popular;
-                            }
+                // 1. Popular Now
+                try {
+                    let popular;
+                    if (this.popularCache) {
+                        popular = this.popularCache;
+                    } else {
+                        let res = await Network.get(
+                            `${this.apiBaseUrl}/galleries/popular`,
+                            this.getApiBaseHeaders()
+                        );
+                        if (res.status === 200) {
+                            popular = JSON.parse(res.body);
+                            this.popularCache = popular;
                         }
-                        if (Array.isArray(popular) && popular.length > 0) {
-                            data.push({
-                                title: "Popular Now",
-                                comics: this.fitToRow(popular.map(e => this.parseComicFromApi(e)), 8)
-                            });
-                        }
-                    } catch (e) {
-                        // popular section failure shouldn't block latest list
                     }
+                    if (Array.isArray(popular) && popular.length > 0) {
+                        data.push({
+                            title: "Popular Now",
+                            comics: this.fitToRow(popular.map(e => this.parseComicFromApi(e)), 8),
+                            viewMore: null
+                        });
+                    }
+                } catch (e) {
+                    // popular section failure shouldn't block latest list
                 }
 
+                // 2. New Uploads
                 let latest = await this.loadApiGalleries(
-                    `${this.apiBaseUrl}/galleries?page=${currentPage}`
+                    `${this.apiBaseUrl}/galleries?page=1`
                 );
 
-                if (currentPage === 1) {
-                    data.push({
-                        title: "New Uploads",
-                        comics: latest.comics
-                    });
-                } else {
-                    data.push(latest.comics);
-                }
+                data.push({
+                    title: "New Uploads",
+                    comics: this.fitToRow(latest.comics, 28),
+                    viewMore: null
+                });
 
-                return {
-                    data,
-                    maxPage: latest.maxPage
-                };
+                return data;
             }
         }
     ]

@@ -194,8 +194,8 @@
   {
     "name": "nhentai",
     "key": "nhentai",
-    "version": "1.1.1",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.1/nhentai.js",
+    "version": "1.1.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.2/nhentai.js",
     "fileName": "nhentai.js",
     "description": "nhentai (R18)"
   },
@@ -210,8 +210,8 @@
   {
     "name": "H-Comic",
     "key": "hcomic",
-    "version": "1.0.2",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hcomic-v1.0.2/hcomic.js",
+    "version": "1.0.3",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hcomic-v1.0.3/hcomic.js",
     "fileName": "hcomic.js",
     "description": "H-Comic (R18)"
   },
