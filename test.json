@@ -192,10 +192,10 @@
     "description": "Colamanga"
   },
   {
-    "name": "nhentai",
+    "name": "N-Hentai",
     "key": "nhentai",
-    "version": "1.1.2",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.2/nhentai.js",
+    "version": "1.1.3",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.3/nhentai.js",
     "fileName": "nhentai.js",
     "description": "nhentai (R18)"
   },

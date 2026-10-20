@@ -2,17 +2,17 @@ class Nhentai extends ComicSource {
     // Note: The fields which are marked as [Optional] should be removed if not used
 
     // name of the source
-    name = "nhentai"
+    name = "N-Hentai"
 
     // unique id of the source
     key = "nhentai"
 
-    version = "1.1.2"
+    version = "1.1.3"
 
     minAppVersion = "1.0.0"
 
     // update url
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.2/nhentai.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@nhentai-v1.1.3/nhentai.js"
 
     baseUrl = "https://nhentai.net"
     apiBaseUrl = "https://nhentai.net/api/v2"
@@ -544,7 +544,7 @@ class Nhentai extends ComicSource {
         {
             // title of the page.
             // title is used to identify the page, it should be unique
-            title: "nhentai",
+            title: "N-Hentai",
 
             /// multiPartPage
             type: "multiPartPage",
@@ -601,7 +601,7 @@ class Nhentai extends ComicSource {
     // categories
     category = {
         /// title of the category page, used to identify the page, it should be unique
-        title: "nhentai",
+        title: "N-Hentai",
         parts: [
             {
                 name: "Language",
