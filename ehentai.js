@@ -1,3 +1,19 @@
+/** @type {import('./_venera_.js')} */
+
+function isCloudflareChallenge(status, body) {
+    if (status === 403 || status === 503) {
+        if (body && (
+            body.indexOf("challenge-platform") !== -1 ||
+            body.indexOf("cf-browser-verification") !== -1 ||
+            body.indexOf("Just a moment") !== -1 ||
+            body.indexOf("__cf_chl_") !== -1
+        )) {
+            return true;
+        }
+    }
+    return false;
+}
+
 class Ehentai extends ComicSource {
     // Note: The fields which are marked as [Optional] should be removed if not used
 
@@ -7,12 +23,12 @@ class Ehentai extends ComicSource {
     // unique id of the source
     key = "ehentai"
 
-    version = "1.2.0"
+    version = "1.2.1"
 
     minAppVersion = "1.5.3"
 
-    // update url
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/ehentai.js"
+    // update url (必须锁定带有源 key 前缀的固定 Git Tag，严禁使用 @main)
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.1/ehentai.js"
 
     /**
      * cached api key
@@ -25,6 +41,15 @@ class Ehentai extends ComicSource {
      * @type {string | null}
      */
     uid = null
+
+    get headers() {
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Referer": this.baseUrl + "/",
+        };
+    }
 
     /**
      * @param url
@@ -52,21 +77,25 @@ class Ehentai extends ComicSource {
         if (lastEvent == newTime) {
             return;
         }
-        const res = await Network.get("https://e-hentai.org/news.php", {});
+        const res = await Network.get("https://e-hentai.org/news.php", this.headers);
         if (res.status !== 200) {
             return;
         }
         this.saveData("lastEventTime", newTime);
         const document = new HtmlDocument(res.body);
-        const eventPane = document.getElementById("eventpane");
-        if (eventPane == null) {
-            return;
+        try {
+            const eventPane = document.getElementById("eventpane");
+            if (eventPane == null) {
+                return;
+            }
+            const dawnInfo = eventPane.querySelector("div > p:nth-child(2)");
+            if (dawnInfo == null) {
+                return;
+            }
+            UI.showMessage(dawnInfo.text);
+        } finally {
+            document.dispose();
         }
-        const dawnInfo = eventPane.querySelector("div > p:nth-child(2)");
-        if (dawnInfo == null) {
-            return;
-        }
-        UI.showMessage(dawnInfo.text);
     }
 
     // [Optional] account related
@@ -138,14 +167,19 @@ class Ehentai extends ComicSource {
                         "accept":
                             "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
                         "accept-encoding": "gzip, deflate, br",
-                        "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7"
+                        "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+                        "user-agent": this.headers["User-Agent"]
                     });
                 if (res.status !== 200) {
                     return false
                 }
                 let document = new HtmlDocument(res.body)
-                let name = document.querySelector("div#userlinks > p.home > b > a");
-                document.dispose()
+                let name = null
+                try {
+                    name = document.querySelector("div#userlinks > p.home > b > a");
+                } finally {
+                    document.dispose()
+                }
                 return name != null
             }
         },
@@ -172,12 +206,10 @@ class Ehentai extends ComicSource {
     }
 
     getStarsFromPosition(position) {
+        if (!position) return 0.5;
         let i = 0;
-        while (position[i] !== ";") {
+        while (i < position.length && position[i] !== ";") {
             i++;
-            if (i === position.length) {
-                break;
-            }
         }
         switch (position.substring(0, i)) {
             case "background-position:0px -1px":
@@ -209,7 +241,7 @@ class Ehentai extends ComicSource {
         cookies.forEach((c) => {
             c.domain = '.exhentai.org'
         })
-        cookies.filter((item) => item.name !== 'igneous')
+        cookies = cookies.filter((item) => item.name !== 'igneous')
         Network.deleteCookies('https://exhentai.org')
         Network.setCookies('https://exhentai.org', cookies)
         throw `You may not have permission to access this page. Please check your network or try to login again.`
@@ -228,13 +260,16 @@ class Ehentai extends ComicSource {
         let t = isLeaderBoard ? 1 : 0;
         let res
         try {
-            res = await Network.get(url, {});
+            res = await Network.get(url, this.headers);
         }
         catch (e) {
             if(e.toString().toLowerCase().includes("redirect")) {
                 await this.onLoadFailed()
             }
             throw e
+        }
+        if (isCloudflareChallenge(res.status, res.body)) {
+            throw "Cloudflare 验证拦截：请在漫画源设置中切换域名或登录账号完成验证后再试。"
         }
         if (res.status !== 200) {
             throw `Invalid status code: ${res.status}`
@@ -244,155 +279,166 @@ class Ehentai extends ComicSource {
         }
         if(res.body[0] !== '<') {
             if(res.body.includes("IP")) {
-                throw "Your IP address has been banned"
+                throw "Your IP address has been temporarily banned by E-Hentai. Please wait or change IP."
             }
-            throw "Failed to load page"
+            if(res.body.includes("Viewing Limits Exceeded")) {
+                throw "Viewing limits exceeded on E-Hentai. Please try again later or log in."
+            }
+            throw "Failed to load page: " + res.body.substring(0, 80)
         }
         let document = new HtmlDocument(res.body);
         let galleries = [];
 
-        // compact mode
-        for (let item of document.querySelectorAll("table.itg.gltc > tbody > tr")) {
-            try {
-                let type = item.children[0 + t].children[0].text;
-                let time = item.children[1 + t].children[2].children[0].text;
-                let stars = this.getStarsFromPosition(item.children[1 + t].children[2].children[1].attributes["style"])
-                let cover = item.children[1 + t].children[1].children[0].children[0].attributes["src"];
-                if (cover[0] === 'd') {
-                    cover = item.children[1 + t].children[1].children[0].children[0].attributes["data-src"];
-                }
-                let title = item.children[2 + t].children[0].children[0].text;
-                let link = item.children[2 + t].children[0].attributes["href"];
-                let uploader = "";
-                let pages = 0;
+        try {
+            // compact mode
+            for (let item of document.querySelectorAll("table.itg.gltc > tbody > tr")) {
                 try {
-                    if (url.includes("/favorites.php")) {
-                        pages = Number(item.children[1 + t].children[1].children[1].children[1].children[1].text.match(/\d+/)[0]);
-                    } else {
-                        pages = Number(item.children[3 + t].children[1].text.match(/\d+/)[0]);
-                        uploader = item.children[3 + t].children[0].children[0].text;
+                    let type = item.children[0 + t].children[0].text;
+                    let time = item.children[1 + t].children[2].children[0].text;
+                    let stars = this.getStarsFromPosition(item.children[1 + t].children[2].children[1].attributes["style"])
+                    let cover = item.children[1 + t].children[1].children[0].children[0].attributes["src"];
+                    if (cover && cover[0] === 'd') {
+                        cover = item.children[1 + t].children[1].children[0].children[0].attributes["data-src"];
                     }
-                } catch(e) {}
-                let tags = [];
-                let language = null
-                for (let node of item.children[2 + t].children[0].children[1].children) {
-                    let tag = node.attributes["title"]
-                    if (tag.startsWith("language:")) {
-                        let l = tag.split(":")[1].trim()
-                        language = l === 'translated' ? language : l
-                        continue
+                    let title = item.children[2 + t].children[0].children[0].text;
+                    let link = item.children[2 + t].children[0].attributes["href"];
+                    let uploader = "";
+                    let pages = 0;
+                    try {
+                        if (url.includes("/favorites.php")) {
+                            pages = Number(item.children[1 + t].children[1].children[1].children[1].children[1].text.match(/\d+/)[0]);
+                        } else {
+                            pages = Number(item.children[3 + t].children[1].text.match(/\d+/)[0]);
+                            uploader = item.children[3 + t].children[0].children[0].text;
+                        }
+                    } catch(e) {}
+                    let tags = [];
+                    let language = null
+                    if (item.children[2 + t]?.children?.[0]?.children?.[1]?.children) {
+                        for (let node of item.children[2 + t].children[0].children[1].children) {
+                            let tag = node.attributes ? node.attributes["title"] : null;
+                            if (!tag) continue;
+                            if (tag.startsWith("language:")) {
+                                let l = tag.split(":")[1].trim()
+                                language = l === 'translated' ? language : l
+                                continue
+                            }
+                            tags.push(tag)
+                        }
                     }
-                    tags.push(tag)
+                    galleries.push(new Comic({
+                        id: link,
+                        title: title,
+                        subTitle: uploader,
+                        cover: cover,
+                        tags: tags,
+                        description: time,
+                        stars: stars,
+                        maxPage: pages,
+                        language: language
+                    }));
+                } catch(e) {
                 }
-                galleries.push(new Comic({
-                    id: link,
-                    title: title,
-                    subTitle: uploader,
-                    cover: cover,
-                    tags: tags,
-                    description: time,
-                    stars: stars,
-                    maxPage: pages,
-                    language: language
-                }));
-            } catch(e) {
             }
-        }
 
-        // Thumbnail mode
-        for (let item of document.querySelectorAll("div.gl1t")) {
-            try {
-                let title = item.querySelector("a")?.text ?? "Unknown";
-                let type =
-                    item.querySelector("div.gl5t > div > div.cs")?.text ?? "Unknown";
-                let time = item.querySelectorAll("div.gl5t > div > div").find((element) => !isNaN(Date.parse(element.text)))?.text;
-                let coverPath = item.querySelector("img")?.attributes["src"] ?? "";
-                let stars = this.getStarsFromPosition(item.querySelector("div.gl5t > div > div.ir")?.attributes["style"] ?? "");
-                let link = item.querySelector("a")?.attributes["href"] ?? "";
-                let pages = Number(item.querySelectorAll("div.gl5t > div > div").find((element) => element.text.includes("page"))?.text.match(/\d+/)[0] ?? "0");
-                galleries.push(new Comic({
-                    id: link,
-                    title: title,
-                    cover: coverPath,
-                    description: time,
-                    stars: stars,
-                    maxPage: pages,
-                }));
-            } catch (e) {
-                //忽视
-            }
-        }
-
-        // Extended mode
-        for (let item of document.querySelectorAll("table.itg.glte > tbody > tr")) {
-            try {
-                let title = item.querySelector("td.gl2e > div > a > div > div.glink")?.text ?? "Unknown";
-                let type = item.querySelector("td.gl2e > div > div.gl3e > div.cn")?.text ?? "Unknown";
-                let time = item.querySelectorAll("td.gl2e > div > div.gl3e > div").find((element) => !isNaN(Date.parse(element.text)))?.text ?? "Unknown";
-                let uploader = item.querySelector("td.gl2e > div > div.gl3e > div > a")?.text ?? "Unknown";
-                let coverPath = item.querySelector("td.gl1e > div > a > img")?.attributes["src"] ?? "";
-                let stars = this.getStarsFromPosition(item.querySelector("td.gl2e > div > div.gl3e > div.ir")?.attributes["style"] ?? "");
-                let link = item.querySelector("td.gl1e > div > a")?.attributes["href"] ?? "";
-                let tags = item.querySelectorAll('div.gt, div.gtl').map((e) => e.attributes["title"] ?? "");
-                let pages = Number(item.querySelectorAll("td.gl2e > div > div.gl3e > div").find((element) => element.text.includes("page"))?.text.match(/\d+/)[0] ?? "");
-                let language = tags.find((e) => e.startsWith("language:") && !e.includes('translated'))?.split(":")[1].trim() ?? null;
-                galleries.push(new Comic({
-                    id: link,
-                    title: title,
-                    subTitle: uploader,
-                    cover: coverPath,
-                    tags: tags,
-                    description: time,
-                    stars: stars,
-                    maxPage: pages,
-                    language: language
-                }))
-            } catch (e) {
-                //忽视
-            }
-        }
-
-        // minimal mode
-        for (let item of document.querySelectorAll("table.itg.gltm > tbody > tr")) {
-            try {
-                let title = item.querySelector("td.gl3m > a > div.glink")?.text ?? "Unknown";
-                let type = item.querySelector("td.gl1m > div.cs")?.text ?? "Unknown";
-                let time = item.querySelectorAll("td.gl2m > div").find((element) => !isNaN(Date.parse(element.text)))?.text ?? "Unknown";
-                let uploader = item.querySelector("td.gl5m > div > a")?.text ?? "Unknown";
-                let coverPath = item.querySelector("td.gl2m > div > div > img")?.attributes["src"];
-                if (coverPath[0] === 'd') {
-                    coverPath = item.querySelector("td.gl2m > div > div > img")?.attributes["data-src"];
+            // Thumbnail mode
+            for (let item of document.querySelectorAll("div.gl1t")) {
+                try {
+                    let title = item.querySelector("a")?.text ?? "Unknown";
+                    let type =
+                        item.querySelector("div.gl5t > div > div.cs")?.text ?? "Unknown";
+                    let time = item.querySelectorAll("div.gl5t > div > div").find((element) => !isNaN(Date.parse(element.text)))?.text;
+                    let coverPath = item.querySelector("img")?.attributes["src"] ?? "";
+                    let stars = this.getStarsFromPosition(item.querySelector("div.gl5t > div > div.ir")?.attributes["style"] ?? "");
+                    let link = item.querySelector("a")?.attributes["href"] ?? "";
+                    let pages = Number(item.querySelectorAll("div.gl5t > div > div").find((element) => element.text.includes("page"))?.text.match(/\d+/)?.[0] ?? "0");
+                    galleries.push(new Comic({
+                        id: link,
+                        title: title,
+                        cover: coverPath,
+                        description: time,
+                        stars: stars,
+                        maxPage: pages,
+                    }));
+                } catch (e) {
+                    //忽视
                 }
-                let stars = this.getStarsFromPosition(item.querySelector("td.gl4m > div.ir")?.attributes["style"] ?? "");
-                let link = item.querySelector("td.gl3m > a")?.attributes["href"] ?? "";
-                galleries.push(new Comic({
-                    id: link,
-                    title: title,
-                    subTitle: uploader,
-                    cover: coverPath,
-                    description: time,
-                    stars: stars,
-                }))
-            } catch (e) {
-                //忽视
             }
-        }
 
-        let nextButton = document.querySelector("a#dnext");
-        let next = nextButton?.attributes["href"]
+            // Extended mode
+            for (let item of document.querySelectorAll("table.itg.glte > tbody > tr")) {
+                try {
+                    let title = item.querySelector("td.gl2e > div > a > div > div.glink")?.text ?? "Unknown";
+                    let type = item.querySelector("td.gl2e > div > div.gl3e > div.cn")?.text ?? "Unknown";
+                    let time = item.querySelectorAll("td.gl2e > div > div.gl3e > div").find((element) => !isNaN(Date.parse(element.text)))?.text ?? "Unknown";
+                    let uploader = item.querySelector("td.gl2e > div > div.gl3e > div > a")?.text ?? "Unknown";
+                    let coverPath = item.querySelector("td.gl1e > div > a > img")?.attributes["src"] ?? "";
+                    let stars = this.getStarsFromPosition(item.querySelector("td.gl2e > div > div.gl3e > div.ir")?.attributes["style"] ?? "");
+                    let link = item.querySelector("td.gl1e > div > a")?.attributes["href"] ?? "";
+                    let tags = item.querySelectorAll('div.gt, div.gtl').map((e) => e.attributes["title"] ?? "").filter(Boolean);
+                    let pages = Number(item.querySelectorAll("td.gl2e > div > div.gl3e > div").find((element) => element.text.includes("page"))?.text.match(/\d+/)?.[0] ?? "0");
+                    let language = tags.find((e) => e.startsWith("language:") && !e.includes('translated'))?.split(":")[1]?.trim() ?? null;
+                    galleries.push(new Comic({
+                        id: link,
+                        title: title,
+                        subTitle: uploader,
+                        cover: coverPath,
+                        tags: tags,
+                        description: time,
+                        stars: stars,
+                        maxPage: pages,
+                        language: language
+                    }))
+                } catch (e) {
+                    //忽视
+                }
+            }
 
-        return {
-            comics: galleries,
-            next: next
+            // minimal mode
+            for (let item of document.querySelectorAll("table.itg.gltm > tbody > tr")) {
+                try {
+                    let title = item.querySelector("td.gl3m > a > div.glink")?.text ?? "Unknown";
+                    let type = item.querySelector("td.gl1m > div.cs")?.text ?? "Unknown";
+                    let time = item.querySelectorAll("td.gl2m > div").find((element) => !isNaN(Date.parse(element.text)))?.text ?? "Unknown";
+                    let uploader = item.querySelector("td.gl5m > div > a")?.text ?? "Unknown";
+                    let coverPath = item.querySelector("td.gl2m > div > div > img")?.attributes["src"];
+                    if (coverPath && coverPath[0] === 'd') {
+                        coverPath = item.querySelector("td.gl2m > div > div > img")?.attributes["data-src"];
+                    }
+                    let stars = this.getStarsFromPosition(item.querySelector("td.gl4m > div.ir")?.attributes["style"] ?? "");
+                    let link = item.querySelector("td.gl3m > a")?.attributes["href"] ?? "";
+                    galleries.push(new Comic({
+                        id: link,
+                        title: title,
+                        subTitle: uploader,
+                        cover: coverPath,
+                        description: time,
+                        stars: stars,
+                    }))
+                } catch (e) {
+                    //忽视
+                }
+            }
+
+            let nextButton = document.querySelector("a#dnext");
+            let next = nextButton?.attributes ? nextButton.attributes["href"] : null;
+
+            return {
+                comics: galleries,
+                next: next
+            }
+        } finally {
+            document.dispose();
         }
     }
 
     // explore page list
+    // 发现页规范：首个标签与漫画源同名 (ehentai)
     explore = [
         {
             // title of the page.
             // title is used to identify the page, it should be unique
-            title: "eh latest",
+            title: "ehentai",
 
             /// multiPartPage or multiPageComicList or mixed
             type: "multiPageComicList",
@@ -404,7 +450,7 @@ class Ehentai extends ComicSource {
         {
             // title of the page.
             // title is used to identify the page, it should be unique
-            title: "eh popular",
+            title: "popular",
 
             /// multiPartPage or multiPageComicList or mixed
             type: "multiPageComicList",
@@ -416,7 +462,7 @@ class Ehentai extends ComicSource {
         {
             // title of the page.
             // title is used to identify the page, it should be unique
-            title: "eh watched",
+            title: "watched",
 
             /// multiPartPage or multiPageComicList or mixed
             type: "multiPageComicList",
@@ -438,7 +484,114 @@ class Ehentai extends ComicSource {
     category = {
         /// title of the category page, used to identify the page, it should be unique
         title: "ehentai",
-        parts: [],
+        parts: [
+            {
+                name: "Category",
+                type: "fixed",
+                categories: [
+                    {
+                        label: "Doujinshi",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["1", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Manga",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["2", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Artist CG",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["3", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Game CG",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["4", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Western",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["9", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Non-H",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["8", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Image Set",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["5", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Cosplay",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["6", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Asian Porn",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["7", "", ""]
+                            }
+                        }
+                    },
+                    {
+                        label: "Misc",
+                        target: {
+                            page: "search",
+                            attributes: {
+                                keyword: "",
+                                options: ["0", "", ""]
+                            }
+                        }
+                    },
+                ]
+            }
+        ],
         // enable ranking page
         enableRankingPage: true,
     }
@@ -485,20 +638,32 @@ class Ehentai extends ComicSource {
          * @returns {Promise<{comics: Comic[], maxPage: number}>}
          */
         loadNext: async (keyword, options, next) => {
-            let category = JSON.parse(options[0]);
-            let stars = options[1];
-            let language = options[2];
+            let category = [];
+            if (options && options[0]) {
+                try {
+                    let parsed = JSON.parse(options[0]);
+                    category = Array.isArray(parsed) ? parsed : [parsed];
+                } catch (_) {
+                    category = [options[0]];
+                }
+            } else {
+                category = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+            }
+
+            let stars = options && options[1] ? options[1] : null;
+            let language = options && options[2] ? options[2] : null;
             let fcats = 1023
-            if (!Array.isArray(category)) {
-                category = [category];
-            }
             for(let c of category) {
-                fcats -= 1 << Number(c)
+                let num = Number(c);
+                if (!isNaN(num)) {
+                    fcats -= 1 << num;
+                }
             }
-            if(language && !keyword.includes("language:")) {
-                keyword += ` language:${language}`
+            let kw = keyword ? keyword.trim() : "";
+            if(language && !kw.includes("language:")) {
+                kw = kw ? `${kw} language:${language}` : `language:${language}`;
             }
-            let url = `${this.baseUrl}/?f_search=${encodeURIComponent(keyword)}`
+            let url = `${this.baseUrl}/?f_search=${encodeURIComponent(kw)}`
             if(fcats) {
                 url += `&f_cats=${fcats}`
             }
@@ -533,9 +698,6 @@ class Ehentai extends ComicSource {
             },
             {
                 // type: select, multi-select, dropdown
-                // For select, there is only one selected value
-                // For multi-select, there are multiple selected values or none. The `load` function will receive a json string which is an array of selected values
-                // For dropdown, there is one selected value at most. If no selected value, the `load` function will receive a null
                 type: "dropdown",
                 // For a single option, use `-` to separate the value and text, left for value, right for text
                 options: [
@@ -591,6 +753,7 @@ class Ehentai extends ComicSource {
                 let res = await Network.post(
                     `${this.baseUrl}/gallerypopups.php?gid=${id}&t=${token}&act=addfav`,
                     {
+                        ...this.headers,
                         "Content-Type": "application/x-www-form-urlencoded",
                     },
                     `favcat=${folderId}&favnote=&apply=Add+to+Favorites&update=1`
@@ -603,6 +766,7 @@ class Ehentai extends ComicSource {
                 let res = await Network.post(
                     `${this.baseUrl}/gallerypopups.php?gid=${id}&t=${token}&act=addfav`,
                     {
+                        ...this.headers,
                         "Content-Type": "application/x-www-form-urlencoded",
                     },
                     `favcat=favdel&favnote=&apply=Apply+Changes&update=1`
@@ -624,7 +788,7 @@ class Ehentai extends ComicSource {
             try {
                 this.checkEHEvent();
             } catch (_) {}
-            let res = await Network.get(`${this.baseUrl}/favorites.php`, {});
+            let res = await Network.get(`${this.baseUrl}/favorites.php`, this.headers);
             if (res.status !== 200) {
                 throw `Invalid status code: ${res.status}`
             }
@@ -632,18 +796,21 @@ class Ehentai extends ComicSource {
             let folders = new Map();
             folders.set("-1", "All")
             let sum = 0;
-            for (let item of document.querySelectorAll("div.fp")) {
-                if (item.text === "Show All Favorites") continue;
-                let name = item.children[2]?.text ?? `Favorite ${folders.size}`
-                let length = item.children[0]?.text;
-                if(length) {
-                    name += ` (${length})`
-                    sum += +length
+            try {
+                for (let item of document.querySelectorAll("div.fp")) {
+                    if (item.text === "Show All Favorites") continue;
+                    let name = item.children[2]?.text ?? `Favorite ${folders.size}`
+                    let length = item.children[0]?.text;
+                    if(length) {
+                        name += ` (${length})`
+                        sum += +length
+                    }
+                    folders.set((folders.size-1).toString(), name)
                 }
-                folders.set((folders.size-1).toString(), name)
+                folders.set("-1", `All (${sum})`)
+            } finally {
+                document.dispose()
             }
-            folders.set("-1", `All (${sum})`)
-            document.dispose()
             let favorited = []
             if(comicId) {
                 let comic = await this.comic.loadInfo(comicId)
@@ -677,8 +844,12 @@ class Ehentai extends ComicSource {
                 this.checkEHEvent();
             } catch (_) {}
             let res = await Network.get(id, {
+                ...this.headers,
                 'cookie': 'nw=1'
             });
+            if (isCloudflareChallenge(res.status, res.body)) {
+                throw "Cloudflare 验证拦截：请在漫画源设置中切换域名或登录账号完成验证后再试。"
+            }
             if (res.status !== 200) {
                 throw `Invalid status code: ${res.status}`
             }
@@ -687,122 +858,153 @@ class Ehentai extends ComicSource {
             }
             let document = new HtmlDocument(res.body);
 
-            if (this.isLogged && this.loadSetting("hvevent")) {
-                const eventPane = document.getElementById("eventpane");
-                if (eventPane != null) {
-                    const hvUrl = eventPane.querySelector('div > a')?.attributes['href'];
-                    if (hvUrl != null) {
-                        UI.showDialog(
-                            "HentaiVerse",
-                            this.translate("hentaiverse"),
-                            [
-                                {
-                                    text: this.translate("cancel"),
-                                    callback: () => {}
-                                },
-                                {
-                                    text: this.translate("fight"),
-                                    callback: () => {
-                                        UI.launchUrl(hvUrl);
+            try {
+                if (this.isLogged && this.loadSetting("hvevent")) {
+                    const eventPane = document.getElementById("eventpane");
+                    if (eventPane != null) {
+                        const hvUrl = eventPane.querySelector('div > a')?.attributes['href'];
+                        if (hvUrl != null) {
+                            UI.showDialog(
+                                "HentaiVerse",
+                                this.translate("hentaiverse"),
+                                [
+                                    {
+                                        text: this.translate("cancel"),
+                                        callback: () => {}
+                                    },
+                                    {
+                                        text: this.translate("fight"),
+                                        callback: () => {
+                                            UI.launchUrl(hvUrl);
+                                        }
                                     }
-                                }
-                            ]
-                        );
+                                ]
+                            );
+                        }
                     }
                 }
-            }
 
-            let tags = new Map();
-            for(let tr of document.querySelectorAll("div#taglist > table > tbody > tr")) {
-                tags.set(
-                    tr.children[0].text.substring(0, tr.children[0].text.length - 1),
-                    tr.children[1].children.map((e) =>
-                        e.children[0]
-                        .attributes["onclick"]
-                        .split(":")[1]
-                        .split("'")[0]
-                    )
-                )
-            }
-
-            let maxPage = "1"
-            for(let element of document.querySelectorAll("td.gdt2")) {
-                if (element.text.includes("page")) {
-                    maxPage = element.text.match(/\d+/)[0];
+                let tags = new Map();
+                for(let tr of document.querySelectorAll("div#taglist > table > tbody > tr")) {
+                    if (tr.children && tr.children.length >= 2) {
+                        let catName = tr.children[0].text;
+                        if (catName.endsWith(":")) catName = catName.substring(0, catName.length - 1);
+                        let tagList = [];
+                        for (let e of tr.children[1].children) {
+                            try {
+                                let onclick = e.children?.[0]?.attributes?.["onclick"];
+                                if (onclick) {
+                                    let t = onclick.split(":")[1]?.split("'")?.[0];
+                                    if (t) tagList.push(t);
+                                } else if (e.children?.[0]?.text) {
+                                    tagList.push(e.children[0].text.trim());
+                                }
+                            } catch (_) {}
+                        }
+                        tags.set(catName, tagList);
+                    }
                 }
+
+                let maxPage = "1"
+                for(let element of document.querySelectorAll("td.gdt2")) {
+                    if (element.text.includes("page")) {
+                        let m = element.text.match(/\d+/);
+                        if (m) maxPage = m[0];
+                    }
+                }
+
+                let isFavorited = true;
+                if(document.querySelector("a#favoritelink")?.text === " Add to Favorites") {
+                    isFavorited = false;
+                }
+                let folder = null
+                if(isFavorited) {
+                    try {
+                        let favEl = document.querySelector("div#fav");
+                        let style = favEl?.children?.[0]?.attributes?.["style"];
+                        if (style && style.includes("background-position:0px -")) {
+                            let position = style
+                                .split("background-position:0px -")[1]
+                                .split("px;")[0];
+                            folder = (Number(position - 2) / 19).toString()
+                        }
+                    } catch (_) {}
+                }
+
+                let coverPath = "";
+                let coverDiv = document.querySelector("div#gleft > div#gd1 > div");
+                if (coverDiv && coverDiv.attributes && coverDiv.attributes["style"]) {
+                    let m = RegExp("https?://([-a-zA-Z0-9.]+(/\\S*)?\\.(?:jpg|jpeg|gif|png|webp))").exec(coverDiv.attributes["style"]);
+                    if (m) coverPath = m[0];
+                }
+                if (!coverPath) {
+                    let imgEl = document.querySelector("div#gleft > div#gd1 img");
+                    if (imgEl && imgEl.attributes && imgEl.attributes["src"]) {
+                        coverPath = imgEl.attributes["src"];
+                    }
+                }
+
+                let uploader = document.getElementById("gdn")?.children?.[0]?.text ?? "";
+
+                let stars = Number(document.getElementById("rating_label")?.text?.split(':')?.[1]?.trim());
+                if (isNaN(stars)) stars = 0;
+
+                let categoryEl = document.querySelector("div.cs");
+                let category = categoryEl ? categoryEl.text.trim() : "";
+                if (category) {
+                    tags.set("Category", [category]);
+                }
+
+                if (uploader) {
+                    tags.set("uploader", [uploader]);
+                }
+                
+                let timeEl = document.querySelector("div#gdd > table > tbody > tr > td.gdt2");
+                let time = timeEl ? timeEl.text.trim() : "";
+
+                let script = document.querySelectorAll("script").find((e) => e.text.includes("var token"));
+                let variables = new Map();
+                if (script) {
+                    let reg = RegExp("var\\s+(\\w+)\\s*=\\s*(.*?);", "g");
+                    for(let match of script.text.matchAll(reg)) {
+                        variables.set(match[1], match[2]);
+                    }
+                }
+
+                let title = document.querySelector("h1#gn")?.text ?? "Unknown";
+                let subtitle = document.querySelector("h1#gj")?.text;
+                if(subtitle != null && subtitle.trim() === "") {
+                    subtitle = null;
+                }
+                let comments = this.comic.parseComments(document)
+
+                let parsedMaxPage = Number(maxPage);
+                let comic = new ComicDetails({
+                    id: id,
+                    title: title,
+                    subTitle: subtitle,
+                    cover: coverPath,
+                    tags: tags,
+                    stars: stars,
+                    maxPage: !isNaN(parsedMaxPage) && parsedMaxPage > 0 ? parsedMaxPage : 1,
+                    isFavorite: isFavorited,
+                    uploadTime: time,
+                    url: id,
+                    comments: comments.comments,
+                })
+
+                comic.folder = folder
+                comic.token = variables.get("token")
+                this.apiKey = variables.get("apikey")
+                if(this.apiKey && this.apiKey[0] === '"') {
+                    this.apiKey = this.apiKey.substring(1, this.apiKey.length - 1)
+                }
+                this.uid = variables.get("apiuid")
+
+                return comic;
+            } finally {
+                document.dispose()
             }
-
-            let isFavorited = true;
-            if(document.querySelector("a#favoritelink")?.text === " Add to Favorites") {
-                isFavorited = false;
-            }
-            let folder = null
-            if(isFavorited) {
-                let position = document
-                    .querySelector("div#fav")
-                    .children[0]
-                    .attributes["style"]
-                    .split("background-position:0px -")[1]
-                    .split("px;")[0];
-                folder = (Number(position-2) / 19).toString()
-            }
-
-            let coverPath = document.querySelector("div#gleft > div#gd1 > div").attributes["style"];
-            coverPath = RegExp("https?://([-a-zA-Z0-9.]+(/\\S*)?\\.(?:jpg|jpeg|gif|png|webp))").exec(coverPath)[0];
-
-            let uploader = document.getElementById("gdn")?.children[0]?.text
-
-            let stars = Number(document.getElementById("rating_label")?.text?.split(':')?.at(1)?.trim());
-
-            let category = document.querySelector("div.cs").text;
-            tags.set("Category", [category])
-
-            if (uploader) {
-                tags.set("uploader", [uploader]);
-            }
-            
-            let time = document.querySelector("div#gdd > table > tbody > tr > td.gdt2").text
-
-            let script = document.querySelectorAll("script").find((e) => e.text.includes("var token"));
-            let reg = RegExp("var\\s+(\\w+)\\s*=\\s*(.*?);", "g");
-            let variables = new Map();
-            for(let match of script.text.matchAll(reg)) {
-                variables.set(match[1], match[2]);
-            }
-
-            let title = document.querySelector("h1#gn").text;
-            let subtitle = document.querySelector("h1#gj")?.text;
-            if(subtitle != null && subtitle.trim() === "") {
-                subtitle = null;
-            }
-            let comments = this.comic.parseComments(document)
-
-            let comic = new ComicDetails({
-                id: id,
-                title: title,
-                subTitle: subtitle,
-                cover: coverPath,
-                tags: tags,
-                stars: stars,
-                maxPage: Number(maxPage),
-                isFavorite: isFavorited,
-               // uploader: uploader,
-                uploadTime: time,
-                url: id,
-                comments: comments.comments,
-            })
-
-            comic.folder = folder
-            comic.token = variables.get("token")
-            this.apikey = variables.get("apikey")
-            if(this.apikey[0] === '"') {
-                this.apikey = this.apikey.substring(1, this.apikey.length - 1)
-            }
-            this.uid = variables.get("apiuid")
-
-            document.dispose()
-
-            return comic;
         },
         /**
          * [Optional] load thumbnails of a comic
@@ -816,6 +1018,7 @@ class Ehentai extends ComicSource {
                 url += `?p=${next}`
             }
             let res = await Network.get(url, {
+                ...this.headers,
                 'cache-time': 'long',
                 'prevent-parallel': 'true',
                 'cookie': 'nw=1'
@@ -824,63 +1027,76 @@ class Ehentai extends ComicSource {
                 throw `Invalid status code: ${res.status}`
             }
             let document = new HtmlDocument(res.body);
-            /**
-             * @param e {HtmlElement}
-             */
-            let parseImageUrl = (e) => {
-                let style = e.attributes['style'];
-                let width = Number(style.split('width:')[1].split('px')[0])
-                let height = Number(style.split('height:')[1].split('px')[0])
-                let r = style.split("background:transparent url(")[1]
-                let url = r.split(")")[0]
-                let range = '';
-                if(r.includes('px')) {
-                    let position = Number(r.split(') -')[1].split('px')[0])
-                    range += `x=${position}-${position + width}`
+
+            try {
+                /**
+                 * @param e {HtmlElement}
+                 */
+                let parseImageUrl = (e) => {
+                    let style = e.attributes['style'];
+                    if (!style) return "";
+                    let widthMatch = style.match(/width:\s*(\d+)px/);
+                    let heightMatch = style.match(/height:\s*(\d+)px/);
+                    let width = widthMatch ? Number(widthMatch[1]) : 0;
+                    let height = heightMatch ? Number(heightMatch[1]) : 0;
+                    let r = style.split("background:transparent url(")[1]
+                    if (!r) return "";
+                    let url = r.split(")")[0].replace(/['"]/g, "");
+                    let range = '';
+                    if(r.includes('px')) {
+                        let posMatch = r.match(/\)\s*-(\d+)px/);
+                        if (posMatch) {
+                            let position = Number(posMatch[1]);
+                            range += `x=${position}-${position + width}`;
+                        }
+                    }
+                    if (height) range += `${range ? "&" : ""}y=0-${height}`;
+                    if (range) url += `@${range}`;
+                    return url;
+                };
+                let images = document.querySelectorAll("div.gdtm > div").map((e) => {
+                    return parseImageUrl(e)
+                }).filter(Boolean);
+                images.push(...document.querySelectorAll("div.gdtl > a > img").map((e) => e.attributes["src"]).filter(Boolean))
+                if(images.length === 0) {
+                    for(let e of document.querySelectorAll("div.gt100 > a > div")
+                        .map(e => e.children.length === 0 ? e : e.children[0])) {
+                        let parsed = parseImageUrl(e);
+                        if (parsed) images.push(parsed);
+                    }
+                    for(let e of document.querySelectorAll("div.gt200 > a > div")
+                        .map(e => e.children.length === 0 ? e : e.children[0])) {
+                        let parsed = parseImageUrl(e);
+                        if (parsed) images.push(parsed);
+                    }
                 }
-                if (height)  range += `${range ? "&" : ""}y=0-${height}`;
-                if (range)  url += `@${range}`;
-                return url;
-            };
-            let images = document.querySelectorAll("div.gdtm > div").map((e) => {
-                return parseImageUrl(e)
-            });
-            images.push(...document.querySelectorAll("div.gdtl > a > img").map((e) => e.attributes["src"]))
-            if(images.length === 0) {
-                for(let e of document.querySelectorAll("div.gt100 > a > div")
-                    .map(e => e.children.length === 0 ? e : e.children[0])) {
-                    images.push(parseImageUrl(e))
+                let urls = document.querySelectorAll("table.ptb > tbody > tr > td > a").map((e) => e.attributes["href"]).filter(Boolean)
+                let pageNumbers = urls.map((e) => {
+                    let n = Number(e.split("=")[1])
+                    if(isNaN(n)) {
+                        return 0
+                    }
+                    return n
+                })
+                let maxPage = pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0
+                let current = 0
+                if(next) {
+                    current = Number(next)
                 }
-                for(let e of document.querySelectorAll("div.gt200 > a > div")
-                    .map(e => e.children.length === 0 ? e : e.children[0])) {
-                    images.push(parseImageUrl(e))
+                current += 1
+                if(current > maxPage) {
+                    current = null
+                } else {
+                    current = current.toString()
                 }
-            }
-            let urls = document.querySelectorAll("table.ptb > tbody > tr > td > a").map((e) => e.attributes["href"])
-            let pageNumbers = urls.map((e) => {
-                let n = Number(e.split("=")[1])
-                if(isNaN(n)) {
-                    return 0
+                let _urls = document.querySelectorAll("div#gdt a").map((e) => e.attributes["href"]).filter(Boolean)
+                return {
+                    thumbnails: images,
+                    urls: _urls,
+                    next: current
                 }
-                return n
-            })
-            let maxPage = Math.max(...pageNumbers)
-            let current = 0
-            if(next) {
-                current = Number(next)
-            }
-            current += 1
-            if(current > maxPage) {
-                current = null
-            } else {
-                current = current.toString()
-            }
-            let _urls = document.querySelectorAll("div#gdt a").map((e) => e.attributes["href"])
-            document.dispose()
-            return {
-                thumbnails: images,
-                urls: _urls,
-                next: current
+            } finally {
+                document.dispose()
             }
         },
 
@@ -892,13 +1108,14 @@ class Ehentai extends ComicSource {
          */
         starRating: async (id, rating) => {
             let res = await Network.post(this.apiUrl, {
+                ...this.headers,
                 'Content-Type': 'application/json'
             }, {
                 'gid': this.parseUrl(id).id,
                 'token': this.parseUrl(id).token,
                 'method': 'rategallery',
                 'rating': rating,
-                'apikey': this.apikey,
+                'apikey': this.apiKey,
                 'apiuid': this.uid,
             })
             if(res.status !== 200) {
@@ -909,29 +1126,35 @@ class Ehentai extends ComicSource {
 
         getKey: async (url) => {
             let res = await Network.get(url, {
+                ...this.headers,
                 'cache-time': 'long',
                 'prevent-parallel': 'true',
             })
             let document = new HtmlDocument(res.body)
-            let script = document.querySelectorAll("script").find((e) => e.text.includes("showkey"));
-            if(script) {
-                let reg = RegExp("showkey=\"(.*?)\"", "g");
-                let match = reg.exec(script.text)
-                return {
-                    'showkey': match[1]
+            try {
+                let script = document.querySelectorAll("script").find((e) => e.text.includes("showkey"));
+                if(script) {
+                    let reg = RegExp("showkey=\"(.*?)\"", "g");
+                    let match = reg.exec(script.text)
+                    if (match) {
+                        return {
+                            'showkey': match[1]
+                        }
+                    }
                 }
-            }
-            script = document.querySelectorAll("script").find((e) => e.text.includes("mpvkey"))?.text;
-            document.dispose()
-            if(script) {
-                let mpvkey = script.split(';').find((e) => e.includes("mpvkey")).replaceAll(' ', '').split('=')[1].replaceAll('"', '');
-                let imageList = script.split(';').find((e) => e.includes("imagelist")).replaceAll(' ', '').split('=')[1];
-                return {
-                    'mpvkey': mpvkey,
-                    'imageKeys': JSON.parse(imageList).map((e) => e["k"])
+                let mpvScript = document.querySelectorAll("script").find((e) => e.text.includes("mpvkey"))?.text;
+                if(mpvScript) {
+                    let mpvkey = mpvScript.split(';').find((e) => e.includes("mpvkey")).replaceAll(' ', '').split('=')[1].replaceAll('"', '');
+                    let imageList = mpvScript.split(';').find((e) => e.includes("imagelist")).replaceAll(' ', '').split('=')[1];
+                    return {
+                        'mpvkey': mpvkey,
+                        'imageKeys': JSON.parse(imageList).map((e) => e["k"])
+                    }
                 }
+                throw "Failed to get key"
+            } finally {
+                document.dispose()
             }
-            throw "Failed to get key"
         },
         /**
          * load images of a chapter
@@ -961,6 +1184,7 @@ class Ehentai extends ComicSource {
             let getImageFromApi = async (nl) => {
                 if(key.mpvkey) {
                     let res = await Network.post(this.apiUrl, {
+                        ...this.headers,
                         'Content-Type': 'application/json',
                     }, {
                         'gid': this.parseUrl(comicId).id,
@@ -993,6 +1217,7 @@ class Ehentai extends ComicSource {
                     }
 
                     let res = await Network.post(this.apiUrl, {
+                        ...this.headers,
                         'Content-Type': 'application/json',
                     }, {
                         'gid': this.parseUrl(comicId).id,
@@ -1005,11 +1230,11 @@ class Ehentai extends ComicSource {
                     let json = JSON.parse(res.body)
                     let i6 = json.i6
                     let reg = RegExp("nl\\('(.+?)'\\)").exec(i6)
-                    nl = reg[1]
-                    let image = json.i3
-                    image = image.substring(image.indexOf("src=\"") + 5, image.indexOf("\" style"))
+                    nl = reg ? reg[1] : null
+                    let imgHtml = json.i3
+                    let imgUrl = imgHtml.substring(imgHtml.indexOf("src=\"") + 5, imgHtml.indexOf("\" style"))
                     return {
-                        url: image,
+                        url: imgUrl,
                         nl: nl
                     }
                 }
@@ -1029,6 +1254,7 @@ class Ehentai extends ComicSource {
                 url: res.url,
                 headers: {
                     'referer': this.baseUrl,
+                    'User-Agent': this.headers["User-Agent"],
                 },
                 onLoadFailed: onLoadFailed,
             }
@@ -1046,6 +1272,7 @@ class Ehentai extends ComicSource {
                 url: url,
                 headers: {
                     'referer': this.baseUrl,
+                    'User-Agent': this.headers["User-Agent"],
                 }
             }
         },
@@ -1053,21 +1280,20 @@ class Ehentai extends ComicSource {
             let comments = []
             for(let c of document.querySelectorAll('div.c1')) {
                 let name = c.querySelector('div.c3 > a')?.text ?? ""
-                let time = c.querySelector('div.c3')?.text?.split("Posted on")?.at(1)?.split('by')?.at(0)?.trim() ?? 'unknown'
+                let time = c.querySelector('div.c3')?.text?.split("Posted on")?.[1]?.split('by')?.[0]?.trim() ?? 'unknown'
                 let content = ''
                 if(typeof appVersion) {
-                    // since 1.0.6, [appVersion] field is available and rich comment is supported
-                    content = c.querySelector('div.c6').innerHTML
+                    content = c.querySelector('div.c6')?.innerHTML ?? ""
                 } else {
-                    content = c.querySelector('div.c6').text
+                    content = c.querySelector('div.c6')?.text ?? ""
                 }
                 let score = Number(c.querySelector('div.c5 > span')?.text)
                 if(isNaN(score)) {
                     score = null
                 }
-                let id = c.previousElementSibling?.attributes['name']?.match(/\d+/)[0] ?? '0'
-                let isUp = c.querySelector(`a#comment_vote_up_${id}`)?.attributes['style']?.length > 0
-                let isDown = c.querySelector(`a#comment_vote_down_${id}`)?.attributes['style']?.length > 0
+                let id = c.previousElementSibling?.attributes['name']?.match(/\d+/)?.[0] ?? '0'
+                let isUp = (c.querySelector(`a#comment_vote_up_${id}`)?.attributes['style']?.length ?? 0) > 0
+                let isDown = (c.querySelector(`a#comment_vote_down_${id}`)?.attributes['style']?.length ?? 0) > 0
 
                 comments.push(new Comment({
                     id: id,
@@ -1094,15 +1320,18 @@ class Ehentai extends ComicSource {
          */
         loadComments: async (comicId, subId, page, replyTo) => {
             let res = await Network.get(`${comicId}?hc=1`, {
+                ...this.headers,
                 'cookie': 'nw=1'
             });
             if(res.status !== 200) {
                 throw `Invalid status code: ${res.status}`
             }
             let document = new HtmlDocument(res.body)
-            let result = this.comic.parseComments(document)
-            document.dispose()
-            return result
+            try {
+                return this.comic.parseComments(document)
+            } finally {
+                document.dispose()
+            }
         },
         /**
          * [Optional] send a comment, return any value to indicate success
@@ -1114,6 +1343,7 @@ class Ehentai extends ComicSource {
          */
         sendComment: async (comicId, subId, content, replyTo) => {
             let res = await Network.post(comicId, {
+                ...this.headers,
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'referer': comicId,
             }, `commenttext_new=${encodeURIComponent(content)}`)
@@ -1121,10 +1351,15 @@ class Ehentai extends ComicSource {
                 throw `Invalid status code: ${res.status}`
             }
             let document = new HtmlDocument(res.body)
-            if(document.querySelector('p.br')) {
-                throw document.querySelector('p.br').text
+            try {
+                let errEl = document.querySelector('p.br');
+                if(errEl) {
+                    throw errEl.text
+                }
+                return 'ok'
+            } finally {
+                document.dispose()
             }
-            return 'ok'
         },
         /**
          * [Optional] vote a comment
@@ -1136,11 +1371,12 @@ class Ehentai extends ComicSource {
          * @returns {Promise<number>} - new score
          */
         voteComment: async (id, subId, commentId, isUp, isCancel) => {
-            if(this.apikey == null || this.uid == null) {
+            if(this.apiKey == null || this.uid == null) {
                 throw "Login required"
             }
 
             let res = await Network.post(this.apiUrl, {
+                ...this.headers,
                 'Content-Type': 'application/json'
             }, {
                 'gid': this.parseUrl(id).id,
@@ -1148,7 +1384,7 @@ class Ehentai extends ComicSource {
                 'method': 'votecomment',
                 'comment_id': commentId,
                 'comment_vote': isUp ? 1 : -1,
-                'apikey': this.apikey,
+                'apikey': this.apiKey,
                 'apiuid': this.uid,
             })
 
@@ -1166,88 +1402,87 @@ class Ehentai extends ComicSource {
                 let urlParseResult = this.parseUrl(cid)
                 let gid = urlParseResult.id
                 let token = urlParseResult.token
-                let res = await Network.get(`${this.baseUrl}/archiver.php?gid=${gid}&token=${token}`, {})
+                let res = await Network.get(`${this.baseUrl}/archiver.php?gid=${gid}&token=${token}`, this.headers)
                 if(res.status !== 200) {
                     throw `Invalid status code: ${res.status}`
                 }
                 let document = new HtmlDocument(res.body)
-                let body = document.querySelector("div#db")
-                let index = this.baseUrl.includes("exhentai") ? 1 : 3
-                
-                let archives = []
-                
-                // Parse H@H Download options from the table
-                let hathTable = document.querySelector("table");
-                if (hathTable) {
-                    let hathCells = hathTable.querySelectorAll("td");
-                    for (let cell of hathCells) {
-                        let link = cell.querySelector("a");
-                        if (link) {
-                            // Extract resolution from onclick attribute
-                            let onclick = link.attributes["onclick"];
-                            let resolutionMatch = onclick.match(/do_hathdl\('([^']+)'\)/);
-                            if (resolutionMatch) {
-                                let resolution = resolutionMatch[1];
-                                let linkText = link.text;
-                                let paragraphs = cell.querySelectorAll("p");
-                                let size = paragraphs.length > 1 ? paragraphs[1].text : "Unknown";
-                                let cost = paragraphs.length > 2 ? paragraphs[2].text : "Unknown";
-                                
-                                archives.push({
-                                    id: `h@h_${resolution}`,
-                                    title: `H@H ${linkText}`,
-                                    description: `Size: ${size}, Cost: ${cost}`,
-                                });
-                            }
-                        } else {
-                            // Skip disabled options (N/A) - don't add them to the list
-                            // This prevents users from accidentally selecting unavailable options
-                            let paragraphs = cell.querySelectorAll("p");
-                            if (paragraphs.length > 0) {
-                                let size = paragraphs.length > 1 ? paragraphs[1].text : "N/A";
-                                let cost = paragraphs.length > 2 ? paragraphs[2].text : "N/A";
-                                
-                                // Only add if both size and cost are available (not "N/A")
-                                if (size !== "N/A" && cost !== "N/A") {
-                                    let resolutionText = paragraphs[0].text;
+                try {
+                    let body = document.querySelector("div#db")
+                    let index = this.baseUrl.includes("exhentai") ? 1 : 3
+                    
+                    let archives = []
+                    
+                    // Parse H@H Download options from the table
+                    let hathTable = document.querySelector("table");
+                    if (hathTable) {
+                        let hathCells = hathTable.querySelectorAll("td");
+                        for (let cell of hathCells) {
+                            let link = cell.querySelector("a");
+                            if (link) {
+                                // Extract resolution from onclick attribute
+                                let onclick = link.attributes["onclick"];
+                                let resolutionMatch = onclick ? onclick.match(/do_hathdl\('([^']+)'\)/) : null;
+                                if (resolutionMatch) {
+                                    let resolution = resolutionMatch[1];
+                                    let linkText = link.text;
+                                    let paragraphs = cell.querySelectorAll("p");
+                                    let size = paragraphs.length > 1 ? paragraphs[1].text : "Unknown";
+                                    let cost = paragraphs.length > 2 ? paragraphs[2].text : "Unknown";
+                                    
                                     archives.push({
-                                        id: `h@h_${resolutionText.toLowerCase().replace('x', '')}`,
-                                        title: `H@H ${resolutionText}`,
-                                        description: `Cost: ${cost}, Size: ${size}`,
+                                        id: `h@h_${resolution}`,
+                                        title: `H@H ${linkText}`,
+                                        description: `Size: ${size}, Cost: ${cost}`,
                                     });
                                 }
-                                // If size or cost is "N/A", we simply skip this option
+                            } else {
+                                let paragraphs = cell.querySelectorAll("p");
+                                if (paragraphs.length > 0) {
+                                    let size = paragraphs.length > 1 ? paragraphs[1].text : "N/A";
+                                    let cost = paragraphs.length > 2 ? paragraphs[2].text : "N/A";
+                                    
+                                    if (size !== "N/A" && cost !== "N/A") {
+                                        let resolutionText = paragraphs[0].text;
+                                        archives.push({
+                                            id: `h@h_${resolutionText.toLowerCase().replace('x', '')}`,
+                                            title: `H@H ${resolutionText}`,
+                                            description: `Cost: ${cost}, Size: ${size}`,
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
+                    
+                    // Original Download
+                    let origin = body?.children?.[index]?.children?.[0];
+                    if (origin) {
+                        let originCost = origin.querySelector("div > strong")?.text || "Unknown";
+                        let originSize = origin.querySelector("p > strong")?.text || "Unknown";
+                        archives.push({
+                            id: '0',
+                            title: 'Original',
+                            description: `Cost: ${originCost}, Size: ${originSize}`,
+                        });
+                    }
+                    
+                    // Resample Download
+                    let resample = body?.children?.[index]?.children?.[1];
+                    if (resample) {
+                        let resampleCost = resample.querySelector("div > strong")?.text || "Unknown";
+                        let resampleSize = resample.querySelector("p > strong")?.text || "Unknown";
+                        archives.push({
+                            id: '1',
+                            title: 'Resample',
+                            description: `Cost: ${resampleCost}, Size: ${resampleSize}`,
+                        });
+                    }
+                    
+                    return archives
+                } finally {
+                    document.dispose()
                 }
-                
-                // Original Download
-                let origin = body.children[index]?.children[0];
-                if (origin) {
-                    let originCost = origin.querySelector("div > strong")?.text || "Unknown";
-                    let originSize = origin.querySelector("p > strong")?.text || "Unknown";
-                    archives.push({
-                        id: '0',
-                        title: 'Original',
-                        description: `Cost: ${originCost}, Size: ${originSize}`,
-                    });
-                }
-                
-                // Resample Download
-                let resample = body.children[index]?.children[1];
-                if (resample) {
-                    let resampleCost = resample.querySelector("div > strong")?.text || "Unknown";
-                    let resampleSize = resample.querySelector("p > strong")?.text || "Unknown";
-                    archives.push({
-                        id: '1',
-                        title: 'Resample',
-                        description: `Cost: ${resampleCost}, Size: ${resampleSize}`,
-                    });
-                }
-                
-                document.dispose()
-                return archives
             },
             getDownloadUrl: async (cid, aid) => {
                 let urlParseResult = this.parseUrl(cid)
@@ -1260,6 +1495,7 @@ class Ehentai extends ComicSource {
                     
                     // For H@H downloads, send the command directly to archiver.php
                     let hathRes = await Network.post(`${this.baseUrl}/archiver.php?gid=${gid}&token=${token}`, {
+                        ...this.headers,
                         "Content-Type": "application/x-www-form-urlencoded",
                     }, `hathdl_xres=${resolution}`)
                     
@@ -1269,44 +1505,26 @@ class Ehentai extends ComicSource {
                     
                     // Parse response for any error messages
                     let hathDocument = new HtmlDocument(hathRes.body)
-                    let errorElement = hathDocument.querySelector("p.br")
-                    
-                    if (errorElement) {
-                        let errorMessage = errorElement.text
-                        hathDocument.dispose()
-                        
-                        if (errorMessage.includes("H@H client")) {
-                            throw "You need an H@H client associated with your account to use this feature"
-                        } else if (errorMessage.includes("offline")) {
-                            throw "Your H@H client appears to be offline. Please start it and try again"
-                        } else if (errorMessage.includes("resolution")) {
-                            throw "This gallery cannot be downloaded at the selected resolution"
-                        } else {
-                            throw errorMessage
+                    try {
+                        let errorElement = hathDocument.querySelector("p.br")
+                        if (errorElement) {
+                            let errorMessage = errorElement.text
+                            if (errorMessage.includes("H@H client")) {
+                                throw "You need an H@H client associated with your account to use this feature"
+                            } else if (errorMessage.includes("offline")) {
+                                throw "Your H@H client appears to be offline. Please start it and try again"
+                            } else if (errorMessage.includes("resolution")) {
+                                throw "This gallery cannot be downloaded at the selected resolution"
+                            } else {
+                                throw errorMessage
+                            }
                         }
+                        
+                        // Return empty string to avoid type error and prevent download task creation
+                        return "";
+                    } finally {
+                        hathDocument.dispose()
                     }
-                    
-                    // Check for success message or assume success if no error
-                    let successMessage = hathDocument.querySelector("p")?.text
-                    hathDocument.dispose()
-                    
-                    let resolutionText = resolution === 'org' ? 'Original' : 
-                                       resolution === '800' ? '800x' :
-                                       resolution === '1280' ? '1280x' :
-                                       resolution === '1920' ? '1920x' :
-                                       resolution === '2560' ? '2560x' : resolution;
-                    
-                    // For H@H downloads, return a special value to indicate remote download
-                    // This should close the window without creating a local download task
-                    // let message = successMessage && successMessage.includes("successfully") 
-                    //     ? `H@H download command sent successfully (${resolutionText}). Check your H@H client.`
-                    //     : `H@H download command sent (${resolutionText}). Check your H@H client.`;
-                    
-                    // // Show success message to user
-                    // UI.showMessage(message);
-                    
-                    // Return empty string to avoid type error and prevent download task creation
-                    return "";
                 }
                 
                 // Handle regular downloads (Original and Resample)
@@ -1323,23 +1541,33 @@ class Ehentai extends ComicSource {
                 }
                 
                 let res = await Network.post(`${this.baseUrl}/archiver.php?gid=${gid}&token=${token}`, {
+                    ...this.headers,
                     "Content-Type": "application/x-www-form-urlencoded",
                 }, data)
                 if (res.status !== 200) {
                     throw `Invalid status code: ${res.status}`
                 }
                 let document = new HtmlDocument(res.body)
-                let link = document.querySelector("a")?.attributes["href"]
+                let link = null
+                try {
+                    link = document.querySelector("a")?.attributes["href"]
+                } finally {
+                    document.dispose()
+                }
                 if(!link) {
                     throw "Failed to get download link"
                 }
                 let res2 = await Network.get(link, {
-                    'http_client': 'dart:io' // The server is uncomfortable with the default client
+                    'http_client': 'dart:io',
+                    'User-Agent': this.headers["User-Agent"]
                 })
-                document.dispose()
-                document = new HtmlDocument(res2.body)
-                let link2 = document.querySelector("a")?.attributes["href"]
-                document.dispose()
+                let document2 = new HtmlDocument(res2.body)
+                let link2 = null
+                try {
+                    link2 = document2.querySelector("a")?.attributes["href"]
+                } finally {
+                    document2.dispose()
+                }
                 function getHost(url) {
                     const regex = /^(?:https?:\/\/)?(?:www\.)?([^\/]+)/i;
                     const match = url.match(regex);
@@ -1349,6 +1577,7 @@ class Ehentai extends ComicSource {
                 let resultLink = "https://" + host + link2
                 let test = await Network.sendRequest('HEAD', resultLink, {
                     'http_client': 'dart:io',
+                    'User-Agent': this.headers["User-Agent"]
                 }, null)
                 if(test.status === 410) {
                     throw "IP quota exhausted."
@@ -1491,6 +1720,18 @@ class Ehentai extends ComicSource {
             "H@H 2560x": "H@H 2560x",
             "Original": "原版",
             "Resample": "重采样",
+            "popular": "最受欢迎",
+            "watched": "我的关注",
+            "Doujinshi": "同人志",
+            "Manga": "单行本",
+            "Artist CG": "画师CG",
+            "Game CG": "游戏CG",
+            "Western": "欧美",
+            "Non-H": "非H",
+            "Image Set": "图集",
+            "Cosplay": "Cosplay",
+            "Asian Porn": "亚洲色情",
+            "Misc": "其他",
         },
         'zh_TW': {
             'domain': '域名',
@@ -1528,6 +1769,18 @@ class Ehentai extends ComicSource {
             "H@H 2560x": "H@H 2560x",
             "Original": "原版",
             "Resample": "重採樣",
+            "popular": "最受歡迎",
+            "watched": "我的關注",
+            "Doujinshi": "同人誌",
+            "Manga": "單行本",
+            "Artist CG": "畫師CG",
+            "Game CG": "遊戲CG",
+            "Western": "歐美",
+            "Non-H": "非H",
+            "Image Set": "圖集",
+            "Cosplay": "Cosplay",
+            "Asian Porn": "亞洲色情",
+            "Misc": "其他",
         },
         'en_US': {
             "domain": "Domain",
@@ -1564,7 +1817,19 @@ class Ehentai extends ComicSource {
             "H@H 1920x": "H@H 1920x",
             "H@H 2560x": "H@H 2560x",
             "Original": "Original",
-            "Resample": "Resample"
+            "Resample": "Resample",
+            "popular": "Popular",
+            "watched": "Watched",
+            "Doujinshi": "Doujinshi",
+            "Manga": "Manga",
+            "Artist CG": "Artist CG",
+            "Game CG": "Game CG",
+            "Western": "Western",
+            "Non-H": "Non-H",
+            "Image Set": "Image Set",
+            "Cosplay": "Cosplay",
+            "Asian Porn": "Asian Porn",
+            "Misc": "Misc",
         },
     }
 }
