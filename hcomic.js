@@ -29,12 +29,12 @@ class HComic extends ComicSource {
     // Unique id of the source
     key = "hcomic"
 
-    version = "1.0.1"
+    version = "1.0.2"
 
     minAppVersion = "1.6.0"
 
     // Update url
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hcomic-v1.0.1/hcomic.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hcomic-v1.0.2/hcomic.js"
 
     baseUrl = "https://h-comic.com"
 
@@ -144,7 +144,7 @@ class HComic extends ComicSource {
         });
     }
 
-    // explore page list
+    // explore page list (single tab, prioritized to homepage list)
     explore = [
         {
             // title of the page.
@@ -155,7 +155,7 @@ class HComic extends ComicSource {
 
             load: async (page) => {
                 if (!page || page < 1) page = 1;
-                let url = `${this.baseUrl}/?page=${page}&q=&tag=`;
+                let url = page === 1 ? `${this.baseUrl}/` : `${this.baseUrl}/?page=${page}`;
                 let html = await this.getHtml(url);
                 let data = this.extractData(html);
                 if (!data || !data.comics) {
@@ -169,24 +169,6 @@ class HComic extends ComicSource {
                     comics: comics,
                     maxPage: maxPage
                 };
-            }
-        },
-        {
-            title: "随机推荐",
-            type: "multiPartPage",
-            load: async () => {
-                let url = `${this.baseUrl}/random`;
-                let html = await this.getHtml(url);
-                let data = this.extractData(html);
-                if (!data || !data.comics) return [];
-
-                let comics = data.comics.map(c => this.parseComic(c));
-                return [
-                    {
-                        title: "随机漫画",
-                        comics: fitToRow(comics, 16)
-                    }
-                ];
             }
         }
     ]
