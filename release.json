@@ -62,5 +62,21 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jm-v1.4.1/jm.js",
     "fileName": "jm.js",
     "description": "禁漫天堂 (R18), 不能使用時請嘗試切換分流"
+  },
+  {
+    "name": "紳士漫畫",
+    "key": "wnacg",
+    "version": "1.0.7",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@wnacg-v1.0.7/wnacg.js",
+    "fileName": "wnacg.js",
+    "description": "紳士漫畫 (R18), 不能使用時請嘗試更換URL"
+  },
+  {
+    "name": "hitomi.la",
+    "key": "hitomi",
+    "version": "1.1.5",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hitomi-v1.1.5/hitomi.js",
+    "fileName": "hitomi.js",
+    "description": "hitomi.la (R18)"
   }
 ]
