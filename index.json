@@ -38,5 +38,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.3/copy_manga.js",
     "fileName": "copy_manga.js",
     "description": "拷贝漫画 (copy_manga)"
+  },
+  {
+    "name": "PicACG",
+    "key": "picacg",
+    "version": "1.0.7",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.7/picacg.js",
+    "fileName": "picacg.js",
+    "description": "PicACG (picacg)"
   }
 ]

@@ -8,14 +8,6 @@
     "description": "爱看漫 (ikmmh)"
   },
   {
-    "name": "PicACG",
-    "key": "picacg",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/picacg.js",
-    "fileName": "picacg.js",
-    "description": "PicACG (picacg)"
-  },
-  {
     "name": "漫蛙吧",
     "key": "manwaba",
     "version": "1.0.0",

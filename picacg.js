@@ -3,11 +3,11 @@ class Picacg extends ComicSource {
 
     key = "picacg"
 
-    version = "1.0.6"
+    version = "1.0.7"
 
     minAppVersion = "1.0.0"
 
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/picacg.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.7/picacg.js"
 
     static defaultApiUrl = "https://picaapi.picacomic.com"
 
@@ -46,14 +46,58 @@ class Picacg extends ComicSource {
         }
     }
 
+    _reLoginPromise = null
+
+    async reLogin() {
+        if (!this.isLogged) {
+            throw 'Not logged in'
+        }
+        if (this._reLoginPromise) {
+            return await this._reLoginPromise
+        }
+        this._reLoginPromise = (async () => {
+            try {
+                return await this.account.reLogin()
+            } finally {
+                this._reLoginPromise = null
+            }
+        })()
+        return await this._reLoginPromise
+    }
+
+    async request(method, path, body = null) {
+        if (!this.isLogged) {
+            throw 'Not logged in'
+        }
+        let url = `${this.loadSetting('base_url')}/${path}`
+        let headers = this.buildHeaders(method, path, this.loadData('token'))
+        let payload = typeof body === 'object' && body !== null ? JSON.stringify(body) : (body ?? '{}')
+        let res = method.toUpperCase() === 'POST'
+            ? await Network.post(url, headers, payload)
+            : await Network.get(url, headers)
+
+        if (res.status === 401) {
+            await this.reLogin()
+            headers = this.buildHeaders(method, path, this.loadData('token'))
+            res = method.toUpperCase() === 'POST'
+                ? await Network.post(url, headers, payload)
+                : await Network.get(url, headers)
+        }
+
+        if (res.status !== 200) {
+            throw `Invalid status code: ${res.status}`
+        }
+        return JSON.parse(res.body)
+    }
+
     account = {
         reLogin: async () => {
-            if(!this.isLogged) {
-                throw new Error('Not logged in');
+            if (!this.isLogged) {
+                throw new Error('Not logged in')
             }
             let account = this.loadData('account')
-            if(!Array.isArray(account)) {
-                throw new Error('Failed to reLogin: Invalid account data');
+            if (!Array.isArray(account)) {
+                throw new Error('Failed to reLogin: Invalid account data')
             }
             let username = account[0]
             let password = account[1]
@@ -67,7 +111,8 @@ class Picacg extends ComicSource {
             let res = await Network.post(
                 `${this.loadSetting('base_url')}/auth/sign-in`,
                 this.buildHeaders('POST', 'auth/sign-in'),
-                body)
+                body
+            )
 
             if (res.status === 200) {
                 let json = JSON.parse(res.body)
@@ -83,6 +128,7 @@ class Picacg extends ComicSource {
 
         logout: () => {
             this.deleteData('token')
+            this.deleteData('account')
         },
 
         registerWebsite: "https://manhuabika.com/pregister/?"
@@ -96,9 +142,9 @@ class Picacg extends ComicSource {
             id: comic._id,
             title: comic.title,
             subTitle: comic.author,
-            cover: comic.thumb.fileServer + '/static/' + comic.thumb.path,
+            cover: comic.thumb ? (comic.thumb.fileServer + '/static/' + comic.thumb.path) : '',
             tags: tags,
-            description: `${comic.totalLikes ?? comic.likesCount} likes`,
+            description: `${comic.totalLikes ?? comic.likesCount ?? 0} likes`,
             maxPage: comic.pagesCount,
         })
     }
@@ -108,26 +154,9 @@ class Picacg extends ComicSource {
             title: "Picacg Random",
             type: "multiPageComicList",
             load: async (page) => {
-                if (!this.isLogged) {
-                    throw 'Not logged in'
-                }
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/random`,
-                    this.buildHeaders('GET', 'comics/random', this.loadData('token'))
-                )
-                if(res.status === 401) {
-                    await this.account.reLogin()
-                    res = await Network.get(
-                        `${this.loadSetting('base_url')}/comics/random`,
-                        this.buildHeaders('GET', 'comics/random', this.loadData('token'))
-                    )
-                }
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
+                let data = await this.request('GET', 'comics/random')
                 let comics = []
-                data.data.comics.forEach(c => {
+                ;(data.data?.comics || []).forEach(c => {
                     comics.push(this.parseComic(c))
                 })
                 return {
@@ -139,123 +168,44 @@ class Picacg extends ComicSource {
             title: "Picacg Latest",
             type: "multiPageComicList",
             load: async (page) => {
-                if (!this.isLogged) {
-                    throw 'Not logged in'
-                }
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics?page=${page}&s=dd`,
-                    this.buildHeaders('GET', `comics?page=${page}&s=dd`, this.loadData('token'))
-                )
-                if(res.status === 401) {
-                    await this.account.reLogin()
-                    res = await Network.get(
-                        `${this.loadSetting('base_url')}/comics?page=${page}&s=dd`,
-                        this.buildHeaders('GET', `comics?page=${page}&s=dd`, this.loadData('token'))
-                    )
-                }
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
+                let data = await this.request('GET', `comics?page=${page}&s=dd`)
                 let comics = []
-                data.data.comics.docs.forEach(c => {
+                ;(data.data?.comics?.docs || []).forEach(c => {
                     comics.push(this.parseComic(c))
                 })
+                let pages = data.data?.comics?.pages
                 return {
-                    comics: comics
+                    comics: comics,
+                    maxPage: !isNaN(pages) && pages > 0 ? pages : 1
                 }
             }
         },
         {
-            title: "Picacg H24",
+            title: "Picacg Leaderboard",
             type: "multiPageComicList",
             load: async (page) => {
-                if (!this.isLogged) {
-                    throw 'Not logged in'
+                const fetchBoard = async (tt) => {
+                    let data = await this.request('GET', `comics/leaderboard?tt=${tt}&ct=VC`)
+                    return data.data?.comics || []
                 }
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/leaderboard?tt=H24&ct=VC`,
-                    this.buildHeaders('GET', 'comics/leaderboard?tt=H24&ct=VC', this.loadData('token'))
-                )
-                if (res.status === 401) {
-                    await this.account.reLogin()
-                    res = await Network.get(
-                        `${this.loadSetting('base_url')}/comics/leaderboard?tt=H24&ct=VC`,
-                        this.buildHeaders('GET', 'comics/leaderboard?tt=H24&ct=VC', this.loadData('token'))
-                    )
-                }
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
+
+                let [h24, d7, d30] = await Promise.all([
+                    fetchBoard('H24'),
+                    fetchBoard('D7'),
+                    fetchBoard('D30')
+                ])
+
+                let seen = new Set()
                 let comics = []
-                data.data.comics.forEach(c => {
-                    comics.push(this.parseComic(c))
-                })
+                for (let c of [...h24, ...d7, ...d30]) {
+                    if (c && c._id && !seen.has(c._id)) {
+                        seen.add(c._id)
+                        comics.push(this.parseComic(c))
+                    }
+                }
                 return {
-                    comics: comics
-                }
-            }
-        },
-        {
-            title: "Picacg D7",
-            type: "multiPageComicList",
-            load: async (page) => {
-                if (!this.isLogged) {
-                    throw 'Not logged in'
-                }
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/leaderboard?tt=D7&ct=VC`,
-                    this.buildHeaders('GET', 'comics/leaderboard?tt=D7&ct=VC', this.loadData('token'))
-                )
-                if (res.status === 401) {
-                    await this.account.reLogin()
-                    res = await Network.get(
-                        `${this.loadSetting('base_url')}/comics/leaderboard?tt=D7&ct=VC`,
-                        this.buildHeaders('GET', 'comics/leaderboard?tt=D7&ct=VC', this.loadData('token'))
-                    )
-                }
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
-                let comics = []
-                data.data.comics.forEach(c => {
-                    comics.push(this.parseComic(c))
-                })
-                return {
-                    comics: comics
-                }
-            }
-        },
-        {
-            title: "Picacg D30",
-            type: "multiPageComicList",
-            load: async (page) => {
-                if (!this.isLogged) {
-                    throw 'Not logged in'
-                }
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/leaderboard?tt=D30&ct=VC`,
-                    this.buildHeaders('GET', 'comics/leaderboard?tt=D30&ct=VC', this.loadData('token'))
-                )
-                if (res.status === 401) {
-                    await this.account.reLogin()
-                    res = await Network.get(
-                        `${this.loadSetting('base_url')}/comics/leaderboard?tt=D30&ct=VC`,
-                        this.buildHeaders('GET', 'comics/leaderboard?tt=D30&ct=VC', this.loadData('token'))
-                    )
-                }
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
-                let comics = []
-                data.data.comics.forEach(c => {
-                    comics.push(this.parseComic(c))
-                })
-                return {
-                    comics: comics
+                    comics: comics,
+                    maxPage: 1
                 }
             }
         }
@@ -322,28 +272,16 @@ class Picacg extends ComicSource {
     categoryComics = {
         load: async (category, param, options, page) => {
             let type = param ?? 'c'
-            let res = await Network.get(
-                `${this.loadSetting('base_url')}/comics?page=${page}&${type}=${encodeURIComponent(category)}&s=${options[0]}`,
-                this.buildHeaders('GET', `comics?page=${page}&${type}=${encodeURIComponent(category)}&s=${options[0]}`, this.loadData('token'))
-            )
-            if(res.status === 401) {
-                await this.account.reLogin()
-                res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics?page=${page}&${type}=${encodeURIComponent(category)}&s=${options[0]}`,
-                    this.buildHeaders('GET', `comics?page=${page}&${type}=${encodeURIComponent(category)}&s=${options[0]}`, this.loadData('token'))
-                )
-            }
-            if (res.status !== 200) {
-                throw 'Invalid status code: ' + res.status
-            }
-            let data = JSON.parse(res.body)
+            let sort = (options && options[0]) || 'dd'
+            let data = await this.request('GET', `comics?page=${page}&${type}=${encodeURIComponent(category)}&s=${sort}`)
             let comics = []
-            data.data.comics.docs.forEach(c => {
+            ;(data.data?.comics?.docs || []).forEach(c => {
                 comics.push(this.parseComic(c))
             })
+            let pages = data.data?.comics?.pages
             return {
                 comics: comics,
-                maxPage: data.data.comics.pages
+                maxPage: !isNaN(pages) && pages > 0 ? pages : 1
             }
         },
         // 提供选项
@@ -364,23 +302,9 @@ class Picacg extends ComicSource {
                 "D30-Month",
             ],
             load: async (option, page) => {
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/leaderboard?tt=${option}&ct=VC`,
-                    this.buildHeaders('GET', `comics/leaderboard?tt=${option}&ct=VC`, this.loadData('token'))
-                )
-                if(res.status === 401) {
-                    await this.account.reLogin()
-                    res = await Network.get(
-                        `${this.loadSetting('base_url')}/comics/leaderboard?tt=${option}&ct=VC`,
-                        this.buildHeaders('GET', `comics/leaderboard?tt=${option}&ct=VC`, this.loadData('token'))
-                    )
-                }
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
+                let data = await this.request('GET', `comics/leaderboard?tt=${option}&ct=VC`)
                 let comics = []
-                data.data.comics.forEach(c => {
+                ;(data.data?.comics || []).forEach(c => {
                     comics.push(this.parseComic(c))
                 })
                 return {
@@ -394,36 +318,25 @@ class Picacg extends ComicSource {
     /// 搜索
     search = {
         load: async (keyword, options, page) => {
-            let res = await Network.post(
-                `${this.loadSetting('base_url')}/comics/advanced-search?page=${page}`,
-                this.buildHeaders('POST', `comics/advanced-search?page=${page}`, this.loadData('token')),
-                JSON.stringify({
-                    keyword: keyword,
-                    sort: options[0],
-                })
-            )
-            if(res.status === 401) {
-                await this.account.reLogin()
-                res = await Network.post(
-                    `${this.loadSetting('base_url')}/comics/advanced-search?page=${page}`,
-                    this.buildHeaders('POST', `comics/advanced-search?page=${page}`, this.loadData('token')),
-                    JSON.stringify({
-                        keyword: keyword,
-                        sort: options[0],
-                    })
-                )
+            if (!keyword || !keyword.trim()) {
+                return {
+                    comics: [],
+                    maxPage: 1
+                }
             }
-            if (res.status !== 200) {
-                throw 'Invalid status code: ' + res.status
-            }
-            let data = JSON.parse(res.body)
+            let sort = (options && options[0]) || 'dd'
+            let data = await this.request('POST', `comics/advanced-search?page=${page}`, {
+                keyword: keyword.trim(),
+                sort: sort,
+            })
             let comics = []
-            data.data.comics.docs.forEach(c => {
+            ;(data.data?.comics?.docs || []).forEach(c => {
                 comics.push(this.parseComic(c))
             })
+            let pages = data.data?.comics?.pages
             return {
                 comics: comics,
-                maxPage: data.data.comics.pages
+                maxPage: !isNaN(pages) && pages > 0 ? pages : 1
             }
         },
         optionList: [
@@ -444,40 +357,21 @@ class Picacg extends ComicSource {
         multiFolder: false,
         /// 添加或者删除收藏
         addOrDelFavorite: async (comicId, folderId, isAdding) => {
-            let res = await Network.post(
-                `${this.loadSetting('base_url')}/comics/${comicId}/favourite`,
-                this.buildHeaders('POST', `comics/${comicId}/favourite`, this.loadData('token')),
-                '{}'
-            )
-            if(res.status === 401) {
-                throw `Login expired`
-            }
-            if(res.status !== 200) {
-                throw 'Invalid status code: ' + res.status
-            }
+            await this.request('POST', `comics/${comicId}/favourite`, {})
             return 'ok'
         },
         /// 加载漫画
         loadComics: async (page, folder) => {
-            let sort = this.loadSetting('favoriteSort')
-            let res = await Network.get(
-                `${this.loadSetting('base_url')}/users/favourite?page=${page}&s=${sort}`,
-                this.buildHeaders('GET', `users/favourite?page=${page}&s=${sort}`, this.loadData('token'))
-            )
-            if(res.status === 401) {
-                throw `Login expired`
-            }
-            if (res.status !== 200) {
-                throw 'Invalid status code: ' + res.status
-            }
-            let data = JSON.parse(res.body)
+            let sort = this.loadSetting('favoriteSort') || 'dd'
+            let data = await this.request('GET', `users/favourite?page=${page}&s=${sort}`)
             let comics = []
-            data.data.comics.docs.forEach(c => {
+            ;(data.data?.comics?.docs || []).forEach(c => {
                 comics.push(this.parseComic(c))
             })
+            let pages = data.data?.comics?.pages
             return {
                 comics: comics,
-                maxPage: data.data.comics.pages
+                maxPage: !isNaN(pages) && pages > 0 ? pages : 1
             }
         }
     }
@@ -487,86 +381,59 @@ class Picacg extends ComicSource {
         // 加载漫画信息
         loadInfo: async (id) => {
             let infoLoader = async () => {
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/${id}`,
-                    this.buildHeaders('GET', `comics/${id}`, this.loadData('token'))
-                )
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
+                let data = await this.request('GET', `comics/${id}`)
                 return data.data.comic
             }
             let epsLoader = async () => {
-                let eps = new Map();
-                let i = 1;
-                let j = 1;
-                let allEps = [];
+                let eps = new Map()
+                let i = 1
+                let j = 1
+                let allEps = []
                 while (true) {
-                    let res = await Network.get(
-                        `${this.loadSetting('base_url')}/comics/${id}/eps?page=${i}`,
-                        this.buildHeaders('GET', `comics/${id}/eps?page=${i}`, this.loadData('token'))
-                    );
-                    if (res.status !== 200) {
-                        throw 'Invalid status code: ' + res.status;
+                    let data = await this.request('GET', `comics/${id}/eps?page=${i}`)
+                    allEps.push(...(data.data?.eps?.docs || []))
+                    let maxPages = data.data?.eps?.pages
+                    if (!maxPages || maxPages <= i) {
+                        break
                     }
-                    let data = JSON.parse(res.body);
-                    allEps.push(...data.data.eps.docs);
-                    if (data.data.eps.pages === i) {
-                        break;
-                    }
-                    i++;
+                    i++
                 }
-                allEps.sort((a, b) => a.order - b.order);
+                allEps.sort((a, b) => a.order - b.order)
                 allEps.forEach(e => {
-                    eps.set(j.toString(), e.title);
-                    j++;
-                });
-                return eps;
+                    eps.set(j.toString(), e.title)
+                    j++
+                })
+                return eps
             }
             let relatedLoader = async () => {
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/${id}/recommendation`,
-                    this.buildHeaders('GET', `comics/${id}/recommendation`, this.loadData('token'))
-                )
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
+                let data = await this.request('GET', `comics/${id}/recommendation`)
                 let comics = []
-                data.data.comics.forEach(c => {
+                ;(data.data?.comics || []).forEach(c => {
                     comics.push(this.parseComic(c))
                 })
                 return comics
             }
-            let info, eps, related
-            try {
-                [info, eps, related] = await Promise.all([infoLoader(), epsLoader(), relatedLoader()])
-            }
-            catch (e) {
-                if (e === 'Invalid status code: 401') {
-                    await this.account.reLogin();
-                    [info, eps, related] = await Promise.all([infoLoader(), epsLoader(), relatedLoader()]);
-                }
-                throw e
-            }
+            let [info, eps, related] = await Promise.all([infoLoader(), epsLoader(), relatedLoader()])
             let tags = {}
-            if(info.author) {
-                tags['Author'] = [info.author];
+            if (info.author) {
+                tags['Author'] = [info.author]
             }
-            if(info.chineseTeam) {
-                tags['Chinese Team'] = [info.chineseTeam];
+            if (info.chineseTeam) {
+                tags['Chinese Team'] = [info.chineseTeam]
             }
             let updateTime = new Date(info.updated_at)
-            let formattedDate = updateTime.getFullYear() + '-' + (updateTime.getMonth() + 1) + '-' + updateTime.getDate()
+            let y = updateTime.getFullYear()
+            let m = String(updateTime.getMonth() + 1).padStart(2, '0')
+            let d = String(updateTime.getDate()).padStart(2, '0')
+            let formattedDate = `${y}-${m}-${d}`
             return new ComicDetails({
                 title: info.title,
-                cover: info.thumb.fileServer + '/static/' + info.thumb.path,
+                cover: info.thumb ? (info.thumb.fileServer + '/static/' + info.thumb.path) : '',
                 description: info.description,
                 tags: {
                     ...tags,
-                    'Categories': info.categories,
-                    'Tags': info.tags,
+                    'Categories': info.categories || [],
+                    'Tags': info.tags || [],
                 },
                 chapters: eps,
                 isFavorite: info.isFavourite ?? false,
@@ -574,7 +441,7 @@ class Picacg extends ComicSource {
                 recommend: related,
                 commentCount: info.commentsCount,
                 likesCount: info.likesCount,
-                uploader: info._creator.name,
+                uploader: info._creator?.name || '',
                 updateTime: formattedDate,
                 maxPage: info.pagesCount,
             })
@@ -583,19 +450,15 @@ class Picacg extends ComicSource {
         loadEp: async (comicId, epId) => {
             let images = []
             let i = 1
-            while(true) {
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/${comicId}/order/${epId}/pages?page=${i}`,
-                    this.buildHeaders('GET', `comics/${comicId}/order/${epId}/pages?page=${i}`, this.loadData('token'))
-                )
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
-                data.data.pages.docs.forEach(p => {
-                    images.push(p.media.fileServer + '/static/' + p.media.path)
+            while (true) {
+                let data = await this.request('GET', `comics/${comicId}/order/${epId}/pages?page=${i}`)
+                ;(data.data?.pages?.docs || []).forEach(p => {
+                    if (p && p.media) {
+                        images.push(p.media.fileServer + '/static/' + p.media.path)
+                    }
                 })
-                if(data.data.pages.pages === i) {
+                let maxPages = data.data?.pages?.pages
+                if (!maxPages || maxPages <= i) {
                     break
                 }
                 i++
@@ -604,15 +467,8 @@ class Picacg extends ComicSource {
                 images: images
             }
         },
-        likeComic: async (id, isLike) =>  {
-            var res = await Network.post(
-                `${this.loadSetting('base_url')}/comics/${id}/like`,
-                this.buildHeaders('POST', `comics/${id}/like`, this.loadData('token')),
-                {}
-            );
-            if (res.status !== 200) {
-                throw 'Invalid status code: ' + res.status
-            }
+        likeComic: async (id, isLike) => {
+            await this.request('POST', `comics/${id}/like`, {})
             return 'ok'
         },
         onImageLoad: async (url, comicId, epId) => {
@@ -635,8 +491,8 @@ class Picacg extends ComicSource {
         loadComments: async (comicId, subId, page, replyTo) => {
             function parseComment(c) {
                 return new Comment({
-                    userName: c._user.name,
-                    avatar: c._user.avatar ? c._user.avatar.fileServer + '/static/' + c._user.avatar.path : undefined,
+                    userName: c._user?.name || '',
+                    avatar: c._user?.avatar ? c._user.avatar.fileServer + '/static/' + c._user.avatar.path : undefined,
                     id: c._id,
                     content: c.content,
                     isLiked: c.isLiked,
@@ -645,82 +501,36 @@ class Picacg extends ComicSource {
                     time: c.created_at,
                 })
             }
+            let path = replyTo
+                ? `comments/${replyTo}/childrens?page=${page}`
+                : `comics/${comicId}/comments?page=${page}`
+            let data = await this.request('GET', path)
             let comments = []
-
-            let maxPage = 1
-
-            if(replyTo) {
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comments/${replyTo}/childrens?page=${page}`,
-                    this.buildHeaders('GET', `comments/${replyTo}/childrens?page=${page}`, this.loadData('token'))
-                )
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
-                data.data.comments.docs.forEach(c => {
-                    comments.push(parseComment(c))
-                })
-                maxPage = data.data.comments.pages
-            } else {
-                let res = await Network.get(
-                    `${this.loadSetting('base_url')}/comics/${comicId}/comments?page=${page}`,
-                    this.buildHeaders('GET', `comics/${comicId}/comments?page=${page}`, this.loadData('token'))
-                )
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-                let data = JSON.parse(res.body)
-                data.data.comments.docs.forEach(c => {
-                    comments.push(parseComment(c))
-                })
-                maxPage = data.data.comments.pages
-            }
+            ;(data.data?.comments?.docs || []).forEach(c => {
+                comments.push(parseComment(c))
+            })
+            let pages = data.data?.comments?.pages
             return {
                 comments: comments,
-                maxPage: maxPage
+                maxPage: !isNaN(pages) && pages > 0 ? pages : 1
             }
         },
         // 发送评论, 返回任意值表示成功
         sendComment: async (comicId, subId, content, replyTo) => {
-            if(replyTo) {
-                let res = await Network.post(
-                    `${this.loadSetting('base_url')}/comments/${replyTo}`,
-                    this.buildHeaders('POST', `/comments/${replyTo}`, this.loadData('token')),
-                    JSON.stringify({
-                        content: content
-                    })
-                )
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-            } else {
-                let res = await Network.post(
-                    `${this.loadSetting('base_url')}/comics/${comicId}/comments`,
-                    this.buildHeaders('POST', `/comics/${comicId}/comments`, this.loadData('token')),
-                    JSON.stringify({
-                        content: content
-                    })
-                )
-                if (res.status !== 200) {
-                    throw 'Invalid status code: ' + res.status
-                }
-            }
+            let path = replyTo
+                ? `comments/${replyTo}`
+                : `comics/${comicId}/comments`
+            await this.request('POST', path, {
+                content: content
+            })
             return 'ok'
         },
         likeComment: async (comicId, subId, commentId, isLike) => {
-            let res = await Network.post(
-                `${this.loadSetting('base_url')}/comments/${commentId}/like`,
-                this.buildHeaders('POST', `/comments/${commentId}/like`, this.loadData('token')),
-                '{}'
-            )
-            if (res.status !== 200) {
-                throw 'Invalid status code: ' + res.status
-            }
+            await this.request('POST', `comments/${commentId}/like`, {})
             return 'ok'
         },
         onClickTag: (namespace, tag) => {
-            if(namespace === 'Author') {
+            if (namespace === 'Author') {
                 return {
                     action: 'category',
                     keyword: tag,
@@ -801,6 +611,7 @@ class Picacg extends ComicSource {
         'zh_CN': {
             'Picacg Random': "哔咔随机",
             'Picacg Latest': "哔咔最新",
+            'Picacg Leaderboard': "哔咔排行榜",
             'Picacg H24': "哔咔日榜",
             'Picacg D7': "哔咔周榜",
             'Picacg D30': "哔咔月榜",
@@ -823,6 +634,7 @@ class Picacg extends ComicSource {
         'zh_TW': {
             'Picacg Random': "哔咔隨機",
             'Picacg Latest': "哔咔最新",
+            'Picacg Leaderboard': "嗶咔排行榜",
             'Picacg H24': "哔咔日榜",
             'Picacg D7': "哔咔周榜",
             'Picacg D30': "哔咔月榜",
