@@ -23,12 +23,12 @@ class Ehentai extends ComicSource {
     // unique id of the source
     key = "ehentai"
 
-    version = "1.2.3"
+    version = "1.2.4"
 
     minAppVersion = "1.5.3"
 
     // update url (必须锁定带有源 key 前缀的固定 Git Tag，严禁使用 @main)
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.3/ehentai.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.4/ehentai.js"
 
     /**
      * cached api key
@@ -290,134 +290,162 @@ class Ehentai extends ComicSource {
         let galleries = [];
 
         try {
-            // compact mode
-            for (let item of document.querySelectorAll("table.itg.gltc > tbody > tr")) {
+            // 1. Compact mode (table.itg.gltc)
+            for (let item of document.querySelectorAll("table.itg.gltc tr")) {
                 try {
-                    let type = item.children[0 + t].children[0].text;
-                    let time = item.children[1 + t].children[2].children[0].text;
-                    let stars = this.getStarsFromPosition(item.children[1 + t].children[2].children[1].attributes["style"])
-                    let cover = item.children[1 + t].children[1].children[0].children[0].attributes["src"];
-                    if (cover && cover[0] === 'd') {
-                        cover = item.children[1 + t].children[1].children[0].children[0].attributes["data-src"];
+                    if (item.querySelector("th")) continue;
+                    let linkEl = item.querySelector("td.glname a") || item.querySelector("td.gl3c a") || (item.children[2 + t]?.children?.[0]);
+                    let link = linkEl?.attributes ? linkEl.attributes["href"] : null;
+                    if (!link || link.trim() === "") continue;
+
+                    let imgEl = item.querySelector("td.glthumb img") || item.querySelector("td.gl2c img") || item.querySelector("img");
+                    let cover = imgEl?.attributes ? (imgEl.attributes["data-src"] || imgEl.attributes["src"]) : "";
+                    if (cover && cover.startsWith("data:") && imgEl?.attributes?.["data-src"]) {
+                        cover = imgEl.attributes["data-src"];
                     }
-                    let title = item.children[2 + t].children[0].children[0].text;
-                    let link = item.children[2 + t].children[0].attributes["href"];
+                    if (!cover || cover.startsWith("data:") || cover.trim() === "") continue;
+
+                    let title = linkEl.querySelector(".glink")?.text || linkEl.text || "Unknown";
+                    let stars = this.getStarsFromPosition(item.children[1 + t]?.children?.[2]?.children?.[1]?.attributes?.["style"] || "");
+                    let time = item.children[1 + t]?.children?.[2]?.children?.[0]?.text || "";
                     let uploader = "";
                     let pages = 0;
                     try {
                         if (url.includes("/favorites.php")) {
-                            pages = Number(item.children[1 + t].children[1].children[1].children[1].children[1].text.match(/\d+/)[0]);
+                            pages = Number(item.children[1 + t]?.children?.[1]?.children?.[1]?.children?.[1]?.children?.[1]?.text.match(/\d+/)?.[0] || 0);
                         } else {
-                            pages = Number(item.children[3 + t].children[1].text.match(/\d+/)[0]);
-                            uploader = item.children[3 + t].children[0].children[0].text;
+                            pages = Number(item.children[3 + t]?.children?.[1]?.text.match(/\d+/)?.[0] || 0);
+                            uploader = item.children[3 + t]?.children?.[0]?.children?.[0]?.text || "";
                         }
-                    } catch(e) {}
+                    } catch (_) {}
+
                     let tags = [];
-                    let language = null
+                    let language = null;
                     if (item.children[2 + t]?.children?.[0]?.children?.[1]?.children) {
                         for (let node of item.children[2 + t].children[0].children[1].children) {
                             let tag = node.attributes ? node.attributes["title"] : null;
                             if (!tag) continue;
                             if (tag.startsWith("language:")) {
-                                let l = tag.split(":")[1].trim()
-                                language = l === 'translated' ? language : l
-                                continue
+                                let l = tag.split(":")[1]?.trim();
+                                language = l === 'translated' ? language : l;
+                                continue;
                             }
-                            tags.push(tag)
+                            tags.push(tag);
                         }
                     }
+
                     galleries.push(new Comic({
                         id: link,
-                        title: title,
-                        subTitle: uploader,
+                        title: title.trim() || "Unknown",
+                        subTitle: uploader || "",
                         cover: cover,
                         tags: tags,
-                        description: time,
+                        description: time || "",
                         stars: stars,
                         maxPage: pages,
                         language: language
                     }));
-                } catch(e) {
-                }
+                } catch (_) {}
             }
 
-            // Thumbnail mode
+            // 2. Thumbnail mode (div.gl1t)
             for (let item of document.querySelectorAll("div.gl1t")) {
                 try {
-                    let title = item.querySelector("a")?.text ?? "Unknown";
-                    let type =
-                        item.querySelector("div.gl5t > div > div.cs")?.text ?? "Unknown";
-                    let time = item.querySelectorAll("div.gl5t > div > div").find((element) => !isNaN(Date.parse(element.text)))?.text;
-                    let coverPath = item.querySelector("img")?.attributes["src"] ?? "";
-                    let stars = this.getStarsFromPosition(item.querySelector("div.gl5t > div > div.ir")?.attributes["style"] ?? "");
-                    let link = item.querySelector("a")?.attributes["href"] ?? "";
-                    let pages = Number(item.querySelectorAll("div.gl5t > div > div").find((element) => element.text.includes("page"))?.text.match(/\d+/)?.[0] ?? "0");
+                    let linkEl = item.querySelector("a");
+                    let link = linkEl?.attributes ? linkEl.attributes["href"] : null;
+                    if (!link || link.trim() === "") continue;
+
+                    let imgEl = item.querySelector("img");
+                    let cover = imgEl?.attributes ? (imgEl.attributes["data-src"] || imgEl.attributes["src"]) : "";
+                    if (cover && cover.startsWith("data:") && imgEl?.attributes?.["data-src"]) {
+                        cover = imgEl.attributes["data-src"];
+                    }
+                    if (!cover || cover.startsWith("data:") || cover.trim() === "") continue;
+
+                    let title = item.querySelector("div.gl4t a div.glink")?.text || item.querySelector("a")?.text || "Unknown";
+                    let time = item.querySelectorAll("div.gl5t > div > div").find((element) => !isNaN(Date.parse(element.text)))?.text || "";
+                    let stars = this.getStarsFromPosition(item.querySelector("div.gl5t > div > div.ir")?.attributes?.["style"] || "");
+                    let pages = Number(item.querySelectorAll("div.gl5t > div > div").find((element) => element.text.includes("page"))?.text.match(/\d+/)?.[0] || "0");
+
                     galleries.push(new Comic({
                         id: link,
-                        title: title,
-                        cover: coverPath,
-                        description: time,
+                        title: title.trim() || "Unknown",
+                        cover: cover,
+                        description: time || "",
                         stars: stars,
                         maxPage: pages,
                     }));
-                } catch (e) {
-                    //忽视
-                }
+                } catch (_) {}
             }
 
-            // Extended mode
-            for (let item of document.querySelectorAll("table.itg.glte > tbody > tr")) {
+            // 3. Extended mode (table.itg.glte)
+            for (let item of document.querySelectorAll("table.itg.glte tr")) {
                 try {
-                    let title = item.querySelector("td.gl2e > div > a > div > div.glink")?.text ?? "Unknown";
-                    let type = item.querySelector("td.gl2e > div > div.gl3e > div.cn")?.text ?? "Unknown";
-                    let time = item.querySelectorAll("td.gl2e > div > div.gl3e > div").find((element) => !isNaN(Date.parse(element.text)))?.text ?? "Unknown";
-                    let uploader = item.querySelector("td.gl2e > div > div.gl3e > div > a")?.text ?? "Unknown";
-                    let coverPath = item.querySelector("td.gl1e > div > a > img")?.attributes["src"] ?? "";
-                    let stars = this.getStarsFromPosition(item.querySelector("td.gl2e > div > div.gl3e > div.ir")?.attributes["style"] ?? "");
-                    let link = item.querySelector("td.gl1e > div > a")?.attributes["href"] ?? "";
-                    let tags = item.querySelectorAll('div.gt, div.gtl').map((e) => e.attributes["title"] ?? "").filter(Boolean);
-                    let pages = Number(item.querySelectorAll("td.gl2e > div > div.gl3e > div").find((element) => element.text.includes("page"))?.text.match(/\d+/)?.[0] ?? "0");
-                    let language = tags.find((e) => e.startsWith("language:") && !e.includes('translated'))?.split(":")[1]?.trim() ?? null;
+                    if (item.querySelector("th")) continue;
+                    let linkEl = item.querySelector("td.gl1e > div > a") || item.querySelector("td.gl2e a") || item.querySelector("a");
+                    let link = linkEl?.attributes ? linkEl.attributes["href"] : null;
+                    if (!link || link.trim() === "") continue;
+
+                    let imgEl = item.querySelector("td.gl1e img") || item.querySelector("img");
+                    let cover = imgEl?.attributes ? (imgEl.attributes["data-src"] || imgEl.attributes["src"]) : "";
+                    if (cover && cover.startsWith("data:") && imgEl?.attributes?.["data-src"]) {
+                        cover = imgEl.attributes["data-src"];
+                    }
+                    if (!cover || cover.startsWith("data:") || cover.trim() === "") continue;
+
+                    let title = item.querySelector("td.gl2e div.glink")?.text || item.querySelector("div.glink")?.text || linkEl.text || "Unknown";
+                    let time = item.querySelectorAll("td.gl2e > div > div.gl3e > div").find((element) => !isNaN(Date.parse(element.text)))?.text || "";
+                    let uploader = item.querySelector("td.gl2e > div > div.gl3e > div > a")?.text || "";
+                    let stars = this.getStarsFromPosition(item.querySelector("td.gl2e > div > div.gl3e > div.ir")?.attributes?.["style"] || "");
+                    let tags = item.querySelectorAll('div.gt, div.gtl').map((e) => e.attributes?.["title"] || "").filter(Boolean);
+                    let pages = Number(item.querySelectorAll("td.gl2e > div > div.gl3e > div").find((element) => element.text.includes("page"))?.text.match(/\d+/)?.[0] || "0");
+                    let language = tags.find((e) => e.startsWith("language:") && !e.includes('translated'))?.split(":")?.[1]?.trim() || null;
+
                     galleries.push(new Comic({
                         id: link,
-                        title: title,
-                        subTitle: uploader,
-                        cover: coverPath,
+                        title: title.trim() || "Unknown",
+                        subTitle: uploader || "",
+                        cover: cover,
                         tags: tags,
-                        description: time,
+                        description: time || "",
                         stars: stars,
                         maxPage: pages,
                         language: language
-                    }))
-                } catch (e) {
-                    //忽视
-                }
+                    }));
+                } catch (_) {}
             }
 
-            // minimal mode
-            for (let item of document.querySelectorAll("table.itg.gltm > tbody > tr")) {
+            // 4. Minimal mode (table.itg.gltm)
+            for (let item of document.querySelectorAll("table.itg.gltm tr")) {
                 try {
-                    let title = item.querySelector("td.gl3m > a > div.glink")?.text ?? "Unknown";
-                    let type = item.querySelector("td.gl1m > div.cs")?.text ?? "Unknown";
-                    let time = item.querySelectorAll("td.gl2m > div").find((element) => !isNaN(Date.parse(element.text)))?.text ?? "Unknown";
-                    let uploader = item.querySelector("td.gl5m > div > a")?.text ?? "Unknown";
-                    let coverPath = item.querySelector("td.gl2m > div > div > img")?.attributes["src"];
-                    if (coverPath && coverPath[0] === 'd') {
-                        coverPath = item.querySelector("td.gl2m > div > div > img")?.attributes["data-src"];
+                    if (item.querySelector("th")) continue;
+                    let linkEl = item.querySelector("td.gl3m a") || item.querySelector("td.glname a") || item.querySelector("a");
+                    let link = linkEl?.attributes ? linkEl.attributes["href"] : null;
+                    if (!link || link.trim() === "") continue;
+
+                    let imgEl = item.querySelector("td.gl2m img") || item.querySelector("img");
+                    let cover = imgEl?.attributes ? (imgEl.attributes["data-src"] || imgEl.attributes["src"]) : "";
+                    if (cover && cover.startsWith("data:") && imgEl?.attributes?.["data-src"]) {
+                        cover = imgEl.attributes["data-src"];
                     }
-                    let stars = this.getStarsFromPosition(item.querySelector("td.gl4m > div.ir")?.attributes["style"] ?? "");
-                    let link = item.querySelector("td.gl3m > a")?.attributes["href"] ?? "";
+                    if (!cover || cover.startsWith("data:") || cover.trim() === "") continue;
+
+                    let title = item.querySelector("div.glink")?.text || linkEl.text || "Unknown";
+                    let time = item.querySelectorAll("td.gl2m div").find((element) => !isNaN(Date.parse(element.text)))?.text || "";
+                    let uploader = item.querySelector("td.gl5m a")?.text || "";
+                    let stars = this.getStarsFromPosition(item.querySelector("td.gl4m div.ir")?.attributes ? item.querySelector("td.gl4m div.ir").attributes["style"] : "");
+                    let pages = Number(item.querySelectorAll("td.gl2m div").find((element) => element.text.includes("page"))?.text.match(/\d+/)?.[0] || "0");
+
                     galleries.push(new Comic({
                         id: link,
-                        title: title,
-                        subTitle: uploader,
-                        cover: coverPath,
-                        description: time,
+                        title: title.trim() || "Unknown",
+                        subTitle: uploader || "",
+                        cover: cover,
+                        description: time || "",
                         stars: stars,
-                    }))
-                } catch (e) {
-                    //忽视
-                }
+                        maxPage: pages,
+                    }));
+                } catch (_) {}
             }
 
             let nextButton = document.querySelector("a#dnext");

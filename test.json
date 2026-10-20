@@ -202,8 +202,8 @@
   {
     "name": "E-Hentai",
     "key": "ehentai",
-    "version": "1.2.3",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.3/ehentai.js",
+    "version": "1.2.4",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.4/ehentai.js",
     "fileName": "ehentai.js",
     "description": "ehentai (R18)"
   },
