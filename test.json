@@ -312,14 +312,6 @@
     "description": "咪咕动漫 (migudm)"
   },
   {
-    "name": "动漫之家",
-    "key": "dmzj",
-    "version": "1.0.1",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@dmzj-v1.0.1/dmzj.js",
-    "fileName": "dmzj.js",
-    "description": "动漫之家 (dmzj)"
-  },
-  {
     "name": "古风漫画",
     "key": "gufengmh",
     "version": "1.0.0",
