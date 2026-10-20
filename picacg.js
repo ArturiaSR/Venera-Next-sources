@@ -1,13 +1,15 @@
+const SOURCE_NAME = "哔咔漫画"
+
 class Picacg extends ComicSource {
-    name = "Picacg"
+    name = SOURCE_NAME
 
     key = "picacg"
 
-    version = "1.0.8"
+    version = "1.0.9"
 
     minAppVersion = "1.0.0"
 
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.8/picacg.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.9/picacg.js"
 
     static defaultApiUrl = "https://picaapi.picacomic.com"
 
@@ -151,7 +153,7 @@ class Picacg extends ComicSource {
 
     explore = [
         {
-            title: "Picacg",
+            title: SOURCE_NAME,
             type: "multiPageComicList",
             load: async (page) => {
                 const fetchBoard = async (tt) => {
@@ -185,7 +187,7 @@ class Picacg extends ComicSource {
     /// 一个漫画源只能有一个分类页面, 也可以没有, 设置为null禁用分类页面
     category = {
         /// 标题, 同时为标识符, 不能与其他漫画源的分类页面重复
-        title: "Picacg",
+        title: SOURCE_NAME,
         parts: [
             {
                 name: "主题",
@@ -579,7 +581,8 @@ class Picacg extends ComicSource {
 
     translation = {
         'zh_CN': {
-            'Picacg': "哔咔",
+            [SOURCE_NAME]: "哔咔漫画",
+            'Picacg': "哔咔漫画",
             'Picacg Random': "哔咔随机",
             'Picacg Latest': "哔咔最新",
             'Picacg Leaderboard': "哔咔排行榜",
@@ -603,7 +606,8 @@ class Picacg extends ComicSource {
             'Sort': "排序",
         },
         'zh_TW': {
-            'Picacg': "嗶咔",
+            [SOURCE_NAME]: "嗶咔漫畫",
+            'Picacg': "嗶咔漫畫",
             'Picacg Random': "哔咔隨機",
             'Picacg Latest': "哔咔最新",
             'Picacg Leaderboard': "嗶咔排行榜",
