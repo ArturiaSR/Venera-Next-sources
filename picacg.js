@@ -3,11 +3,11 @@ class Picacg extends ComicSource {
 
     key = "picacg"
 
-    version = "1.0.7"
+    version = "1.0.8"
 
     minAppVersion = "1.0.0"
 
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.7/picacg.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@picacg-v1.0.8/picacg.js"
 
     static defaultApiUrl = "https://picaapi.picacomic.com"
 
@@ -151,37 +151,7 @@ class Picacg extends ComicSource {
 
     explore = [
         {
-            title: "Picacg Random",
-            type: "multiPageComicList",
-            load: async (page) => {
-                let data = await this.request('GET', 'comics/random')
-                let comics = []
-                ;(data.data?.comics || []).forEach(c => {
-                    comics.push(this.parseComic(c))
-                })
-                return {
-                    comics: comics
-                }
-            }
-        },
-        {
-            title: "Picacg Latest",
-            type: "multiPageComicList",
-            load: async (page) => {
-                let data = await this.request('GET', `comics?page=${page}&s=dd`)
-                let comics = []
-                ;(data.data?.comics?.docs || []).forEach(c => {
-                    comics.push(this.parseComic(c))
-                })
-                let pages = data.data?.comics?.pages
-                return {
-                    comics: comics,
-                    maxPage: !isNaN(pages) && pages > 0 ? pages : 1
-                }
-            }
-        },
-        {
-            title: "Picacg Leaderboard",
+            title: "Picacg",
             type: "multiPageComicList",
             load: async (page) => {
                 const fetchBoard = async (tt) => {
@@ -609,6 +579,7 @@ class Picacg extends ComicSource {
 
     translation = {
         'zh_CN': {
+            'Picacg': "哔咔",
             'Picacg Random': "哔咔随机",
             'Picacg Latest': "哔咔最新",
             'Picacg Leaderboard': "哔咔排行榜",
@@ -632,6 +603,7 @@ class Picacg extends ComicSource {
             'Sort': "排序",
         },
         'zh_TW': {
+            'Picacg': "嗶咔",
             'Picacg Random': "哔咔隨機",
             'Picacg Latest': "哔咔最新",
             'Picacg Leaderboard': "嗶咔排行榜",
