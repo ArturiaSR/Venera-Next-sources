@@ -6,35 +6,29 @@ class MH18 extends ComicSource {
   // 源唯一标识
   key = "mh18"
 
-  version = "1.1.0"
+  version = "1.1.1"
 
   minAppVersion = "1.4.0"
 
   // 更新地址 (必须锁定携带源前缀的 Git Tag，严禁使用 @main)
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mh18-v1.1.0/mh18.js"
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mh18-v1.1.1/mh18.js"
 
   settings = {
     domains: {
-      title: "域名选择",
-      type: "select",
-      options: [
-        { value: "18mh.org", text: "18mh.org (主域名)" },
-        { value: "18mh.net", text: "18mh.net (备用域名)" },
-        { value: "18mh.xyz", text: "18mh.xyz (备用域名)" }
-      ],
-      default: "18mh.org"
-    },
-    customDomain: {
-      title: "自定义域名 (留空则使用上方所选)",
+      title: "域名",
       type: "input",
-      default: ""
+      default: "18mh.org"
     }
   }
 
   get baseUrl() {
-    const custom = (this.loadSetting("customDomain") || "").trim();
-    const domain = custom || this.loadSetting("domains") || "18mh.org";
-    const cleanDomain = domain.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    let domain = "18mh.org";
+    try {
+      domain = this.loadSetting("domains") || "18mh.org";
+    } catch (_) {
+      domain = "18mh.org";
+    }
+    const cleanDomain = String(domain).trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
     return `https://${cleanDomain}`;
   }
 
@@ -148,7 +142,7 @@ class MH18 extends ComicSource {
   // ==========================================
   account = {
     loginWithWebview: {
-      url: `${this.baseUrl}/`,
+      url: "https://18mh.org",
       checkStatus: (url, title) => {
         return Boolean(title && !title.includes("Just a moment") && !title.includes("Attention Required") && !title.includes("Cloudflare"));
       }
