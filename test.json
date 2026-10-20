@@ -248,14 +248,6 @@
     "description": "18漫画 (R18)"
   },
   {
-    "name": "热辣漫画",
-    "key": "hot_manga",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hot_manga.js",
-    "fileName": "hot_manga.js",
-    "description": "热辣漫画 (R18)"
-  },
-  {
     "name": "天天看漫画",
     "key": "ttkmh",
     "version": "1.0.0",
@@ -502,14 +494,6 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hhxxee.js",
     "fileName": "hhxxee.js",
     "description": "HHXXEE (hhxxee)"
-  },
-  {
-    "name": "热辣漫画备用",
-    "key": "hotmanga",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/hotmanga.js",
-    "fileName": "hotmanga.js",
-    "description": "热辣漫画备用 (hotmanga)"
   },
   {
     "name": "爱看漫",
