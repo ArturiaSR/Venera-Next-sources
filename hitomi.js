@@ -181,7 +181,7 @@ function decode_node(data) {
 }
 
 async function get_url_at_range(url, range) {
-  const headers = { referer: refererUrl };
+  const headers = { referer: refererUrl, http_client: "dart:io" };
   if (range) headers.range = `bytes=${range[0]}-${range[1]}`;
   const res = await Network.fetchBytes("GET", url, headers);
   if (res.status !== 200 && res.status !== 206) {
@@ -397,7 +397,7 @@ async function get_galleryids_from_state(state) {
 }
 
 async function get_galleryids_and_count({ range, state }) {
-  const headers = { referer: refererUrl };
+  const headers = { referer: refererUrl, http_client: "dart:io" };
   if (range) headers.range = range;
   const resp = await Network.fetchBytes(
     "GET",
@@ -429,14 +429,38 @@ async function get_galleryids_and_count({ range, state }) {
 
 async function get_single_galleryblock(gid) {
   const url = "https://" + domain + "/" + `galleryblock/${gid}.html`;
-  const res = await Network.get(url, { referer: refererUrl });
-  return parseGalleryBlockInfo(res.body);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await Network.get(url, {
+        referer: refererUrl,
+        http_client: "dart:io",
+      });
+      if (res.status === 200 && res.body) {
+        return parseGalleryBlockInfo(res.body);
+      }
+    } catch (e) {
+      // retry on network glitch
+    }
+  }
+  return null;
 }
 
 async function get_galleryblocks(gids) {
   if (gids.length > 25) throw new Error("Be careful: too many blocks");
-  const list = await Promise.all(gids.map((n) => get_single_galleryblock(n)));
-  return list.filter((n) => Boolean(n));
+  // Chunking by 4 ensures we never exceed Venera's max concurrent HtmlDocument limit (8)
+  // and prevents rhttp / socket buffer exhaustion.
+  const results = [];
+  const chunkSize = 4;
+  for (let i = 0; i < gids.length; i += chunkSize) {
+    const chunk = gids.slice(i, i + chunkSize);
+    const chunkResults = await Promise.all(
+      chunk.map((gid) => get_single_galleryblock(gid))
+    );
+    for (const item of chunkResults) {
+      if (item) results.push(item);
+    }
+  }
+  return results;
 }
 
 /**
@@ -447,7 +471,7 @@ async function get_galleryblocks(gids) {
 async function get_index_version(name = "galleriesindex") {
   const url =
     "https://" + domain + "/" + name + "/version?_=" + new Date().getTime();
-  const resp = await Network.get(url, { referer: refererUrl });
+  const resp = await Network.get(url, { referer: refererUrl, http_client: "dart:io" });
   if (resp.status === 200) {
     return resp.body;
   } else {
@@ -464,6 +488,7 @@ async function get_image_srcs(files) {
     "https://" + domain + "/" + "gg.js?_=" + new Date().getTime(),
     {
       referer: refererUrl,
+      http_client: "dart:io",
     }
   );
   if (resp.status >= 400) {
@@ -573,7 +598,7 @@ function get_thumbnail_url_from_hash(hash, bigTn) {
 async function get_gallery_detail(gid) {
   const resp = await Network.get(
     "https://" + domain + "/" + `galleries/${gid}.js`,
-    { referer: refererUrl }
+    { referer: refererUrl, http_client: "dart:io" }
   );
   if (resp.status !== 200) {
     throw new Error(resp.status);
@@ -813,9 +838,14 @@ function parseGalleryBlockInfo(body) {
 
     // 封面图URL
     const thumbnail_hashs = [];
-    const srcs = Array.from(mangaEl.querySelectorAll("img")).map((a) =>
-      (a.attributes["data-src"] || a.attributes["src"] || "").trim()
-    );
+    const srcs = [
+      ...Array.from(mangaEl.querySelectorAll("img")).map((a) =>
+        (a.attributes["data-src"] || a.attributes["src"] || "").trim()
+      ),
+      ...Array.from(mangaEl.querySelectorAll("source")).map((a) =>
+        (a.attributes["data-srcset"] || a.attributes["srcset"] || "").trim()
+      ),
+    ];
     srcs.forEach((src) => {
       const r = /\/(\w{64})\./.exec(src);
       if (r) {
