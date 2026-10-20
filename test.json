@@ -360,14 +360,6 @@
     "description": "ACGN漫画 (acgncc)"
   },
   {
-    "name": "哔哩哔哩漫画",
-    "key": "bilimanga",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/bilimanga.js",
-    "fileName": "bilimanga.js",
-    "description": "哔哩哔哩漫画 (bilimanga)"
-  },
-  {
     "name": "布卡漫画",
     "key": "bukamh",
     "version": "1.0.0",
