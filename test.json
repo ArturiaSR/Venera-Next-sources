@@ -1,13 +1,5 @@
 [
   {
-    "name": "少年Jump+",
-    "key": "shonen_jump_plus",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/shonen_jump_plus.js",
-    "fileName": "shonen_jump_plus.js",
-    "description": "少年Jump+ (shonen_jump_plus)"
-  },
-  {
     "name": "爱看漫",
     "key": "ikmmh",
     "version": "1.0.0",
