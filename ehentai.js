@@ -18,17 +18,17 @@ class Ehentai extends ComicSource {
     // Note: The fields which are marked as [Optional] should be removed if not used
 
     // name of the source
-    name = "ehentai"
+    name = "E-Hentai"
 
     // unique id of the source
     key = "ehentai"
 
-    version = "1.2.2"
+    version = "1.2.3"
 
     minAppVersion = "1.5.3"
 
     // update url (必须锁定带有源 key 前缀的固定 Git Tag，严禁使用 @main)
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.2/ehentai.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.3/ehentai.js"
 
     /**
      * cached api key
@@ -433,12 +433,12 @@ class Ehentai extends ComicSource {
     }
 
     // explore page list
-    // 发现页规范：仅保留唯一标签，且与漫画源同名 (ehentai)
+    // 发现页规范：仅保留唯一标签，且与漫画源同名 (E-Hentai)
     explore = [
         {
             // title of the page.
             // title is used to identify the page, it should be unique
-            title: "ehentai",
+            title: "E-Hentai",
 
             /// multiPartPage or multiPageComicList or mixed
             type: "multiPageComicList",
@@ -452,7 +452,7 @@ class Ehentai extends ComicSource {
     // categories
     category = {
         /// title of the category page, used to identify the page, it should be unique
-        title: "ehentai",
+        title: "E-Hentai",
         parts: [
             {
                 name: "Category",
