@@ -118,5 +118,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jisumh-v1.0.2/jisumh.js",
     "fileName": "jisumh.js",
     "description": "极速漫画 (jisumh)"
+  },
+  {
+    "name": "漫客栈",
+    "key": "mkzhan",
+    "version": "1.0.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mkzhan-v1.0.2/mkzhan.js",
+    "fileName": "mkzhan.js",
+    "description": "漫客栈 (mkzhan)"
   }
 ]

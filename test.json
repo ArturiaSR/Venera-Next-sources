@@ -496,14 +496,6 @@
     "description": "92漫画 (mh92)"
   },
   {
-    "name": "漫客栈",
-    "key": "mkzhan",
-    "version": "1.0.2",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mkzhan-v1.0.2/mkzhan.js",
-    "fileName": "mkzhan.js",
-    "description": "漫客栈 (mkzhan)"
-  },
-  {
     "name": "梦游漫画",
     "key": "mumumh",
     "version": "1.0.0",
