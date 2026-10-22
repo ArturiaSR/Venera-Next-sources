@@ -424,14 +424,6 @@
     "description": "爱看漫繁体 (ikanmantw)"
   },
   {
-    "name": "极速漫画",
-    "key": "jisumh",
-    "version": "1.0.2",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jisumh-v1.0.2/jisumh.js",
-    "fileName": "jisumh.js",
-    "description": "极速漫画 (jisumh)"
-  },
-  {
     "name": "JPM1234",
     "key": "jpm1234",
     "version": "1.0.0",

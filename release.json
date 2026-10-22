@@ -110,5 +110,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mh18-v1.1.2/mh18.js",
     "fileName": "mh18.js",
     "description": "18漫画 (R18)"
+  },
+  {
+    "name": "极速漫画",
+    "key": "jisumh",
+    "version": "1.0.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jisumh-v1.0.2/jisumh.js",
+    "fileName": "jisumh.js",
+    "description": "极速漫画 (jisumh)"
   }
 ]
