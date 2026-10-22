@@ -504,20 +504,12 @@
     "description": "92漫画 (mh92)"
   },
   {
-    "name": "快看漫画",
+    "name": "漫客栈",
     "key": "mkzhan",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mkzhan.js",
+    "version": "1.0.1",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mkzhan-v1.0.1/mkzhan.js",
     "fileName": "mkzhan.js",
-    "description": "快看漫画 (mkzhan)"
-  },
-  {
-    "name": "MKZHANW",
-    "key": "mkzhanw",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/mkzhanw.js",
-    "fileName": "mkzhanw.js",
-    "description": "MKZHANW (mkzhanw)"
+    "description": "漫客栈 (mkzhan)"
   },
   {
     "name": "梦游漫画",
