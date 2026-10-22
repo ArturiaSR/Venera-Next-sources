@@ -288,14 +288,6 @@
     "description": "Komiic (JS渲染)"
   },
   {
-    "name": "ACG456",
-    "key": "acg456",
-    "version": "1.0.1",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acg456-v1.0.1/acg456.js",
-    "fileName": "acg456.js",
-    "description": "ACG456 (acg456)"
-  },
-  {
     "name": "ACGN漫画",
     "key": "acgncc",
     "version": "1.0.0",
