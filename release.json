@@ -94,5 +94,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@hcomic-v1.0.3/hcomic.js",
     "fileName": "hcomic.js",
     "description": "H-Comic (R18)"
+  },
+  {
+    "name": "E-Hentai",
+    "key": "ehentai",
+    "version": "1.2.4",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.4/ehentai.js",
+    "fileName": "ehentai.js",
+    "description": "E-Hentai (R18)"
   }
 ]
