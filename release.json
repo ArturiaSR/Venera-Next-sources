@@ -102,5 +102,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@ehentai-v1.2.4/ehentai.js",
     "fileName": "ehentai.js",
     "description": "E-Hentai (R18)"
+  },
+  {
+    "name": "18漫画",
+    "key": "mh18",
+    "version": "1.1.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mh18-v1.1.2/mh18.js",
+    "fileName": "mh18.js",
+    "description": "18漫画 (R18)"
   }
 ]
