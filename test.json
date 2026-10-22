@@ -576,14 +576,6 @@
     "description": "X漫画备用 (xmanhua2)"
   },
   {
-    "name": "一本漫画",
-    "key": "yibenmanhua",
-    "version": "1.0.2",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@yibenmanhua-v1.0.2/yibenmanhua.js",
-    "fileName": "yibenmanhua.js",
-    "description": "一本漫画 (yibenmanhua)"
-  },
-  {
     "name": "优动漫",
     "key": "youdm",
     "version": "1.0.0",
