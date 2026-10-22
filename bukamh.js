@@ -2,9 +2,9 @@
 class Bukamh extends ComicSource {
   name = "布卡漫画";
   key = "bukamh";
-  version = "1.0.3";
+  version = "1.0.4";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.3/bukamh.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.4/bukamh.js";
 
   settings = {
     domains: {
@@ -317,6 +317,9 @@ class Bukamh extends ComicSource {
         throw "触发 Cloudflare 5秒盾，请稍后再试。";
       }
       if (res.status !== 200) throw `详情加载失败: ${res.status}`;
+      if (res.body.includes("该漫画不存在或章节已被删除") || res.body.includes("/err/comic")) {
+        throw "该漫画已被原站下架或删除。";
+      }
 
       const doc = new HtmlDocument(res.body);
       try {
@@ -388,15 +391,24 @@ class Bukamh extends ComicSource {
         throw "触发 Cloudflare 5秒盾，请稍后再试。";
       }
       if (res.status !== 200) throw `章节加载失败: ${res.status}`;
+      if (res.body.includes("该漫画不存在或章节已被删除") || res.body.includes("/err/comic")) {
+        throw "该章节已被原站下架或删除。";
+      }
 
       const m = res.body.match(/params\s*=\s*'([^']+)'/);
       if (!m) {
-        throw "无法从章节页面提取图片加密数据";
+        throw "无法从章节页面提取图片数据（原站可能已下架或页面异常）。";
       }
 
       const data = this.decryptParams(m[1]);
-      if (!data || !data.images || data.images.length === 0) {
-        throw "解密失败或章节图片为空";
+      if (!data) {
+        throw "章节数据解密失败。";
+      }
+      if (data.comic_down === 1) {
+        throw "该漫画章节已被原站下架。";
+      }
+      if (!data.images || data.images.length === 0) {
+        throw "原站该章节暂无图片数据（原站采集缺失或死链），请尝试阅读其他章节。";
       }
 
       const images = data.images.map(img => {
