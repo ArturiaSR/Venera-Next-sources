@@ -2,9 +2,9 @@
 class Bukamh extends ComicSource {
   name = "布卡漫画";
   key = "bukamh";
-  version = "1.0.1";
+  version = "1.0.2";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.1/bukamh.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.2/bukamh.js";
 
   settings = {
     domains: {
@@ -62,21 +62,22 @@ class Bukamh extends ComicSource {
     const title = item.querySelector(".name, .txt, .title, h3, h4, img")?.attributes?.alt?.trim()
       || item.querySelector(".name, .txt, .title, h3, h4")?.text?.trim()
       || link.attributes.title?.trim()
-      || link.text?.trim();
-    if (!title) return null;
+      || link.text?.trim()
+      || id;
 
     const img = item.querySelector("img");
     const cover = img?.attributes["data-src"] || img?.attributes["data-original"] || img?.attributes["src"] || "";
-    const author = item.querySelector(".author, .tage, .book-author")?.text?.trim() || "";
-    const update = item.querySelector(".info, .update, .chapter, .latest")?.text?.trim() || "";
+    const author = (item.querySelector(".author, .tage, .book-author")?.text?.trim() || "").toString();
+    const update = (item.querySelector(".info, .update, .chapter, .latest")?.text?.trim() || "").toString();
 
     return new Comic({
-      id,
-      title,
-      subTitle: author,
+      id: String(id),
+      title: String(title),
+      subtitle: String(author),
+      subTitle: String(author),
       cover: this.fixUrl(cover),
       tags: [],
-      description: update || author
+      description: String(update || author)
     });
   }
 
@@ -122,7 +123,7 @@ class Bukamh extends ComicSource {
 
         const doc = new HtmlDocument(res.body);
         try {
-          const result = {};
+          const parts = [];
           const boxes = doc.querySelectorAll(".comic_box");
           for (const box of boxes) {
             const titleEl = box.querySelector(".title .h2, .title span:not(.icon)");
@@ -132,11 +133,15 @@ class Bukamh extends ComicSource {
             if (comics.length > 0) {
               const fitted = this.fitToRow(comics, 12);
               if (fitted.length > 0) {
-                result[sectionTitle] = fitted;
+                parts.push({
+                  title: sectionTitle,
+                  comics: fitted,
+                  viewMore: null
+                });
               }
             }
           }
-          return result;
+          return parts;
         } finally {
           doc.dispose();
         }
@@ -148,74 +153,57 @@ class Bukamh extends ComicSource {
     title: "布卡漫画",
     parts: [
       {
-        name: "type",
-        title: "栏目",
-        type: "select",
-        categories: ["全部", "人气热门", "最近更新", "完结漫画"],
-        itemValues: ["category", "custom/hot", "custom/update", "custom/end"],
-        default: "category"
-      },
-      {
-        name: "tags",
-        title: "题材",
-        type: "select",
+        name: "题材",
+        type: "fixed",
         categories: [
-          "全部", "爆笑", "生活", "灵异", "神魔", "日常", "总裁", "修真", "精品",
-          "战斗", "漫改", "新作", "神仙", "改编", "校园", "治愈", "霸总", "爆更",
-          "社会", "防疫", "剧情", "美食", "奇幻", "恐怖", "动作"
+          "爆笑", "生活", "灵异", "神魔", "日常", "总裁", "修真", "精品",
+          "战斗", "漫改", "新作", "神仙", "改编", "校园", "治愈", "霸总",
+          "爆更", "社会", "防疫", "剧情", "美食", "奇幻", "恐怖", "动作"
         ],
-        itemValues: [
-          "all", "215", "216", "217", "218", "219", "220", "221", "222",
-          "223", "224", "225", "226", "227", "228", "229", "230", "231",
-          "232", "233", "234", "235", "236", "237", "238"
-        ],
-        default: "all"
+        itemType: "category",
+        categoryParams: [
+          "tags/215", "tags/216", "tags/217", "tags/218", "tags/219", "tags/220",
+          "tags/221", "tags/222", "tags/223", "tags/224", "tags/225", "tags/226",
+          "tags/227", "tags/228", "tags/229", "tags/230", "tags/231", "tags/232",
+          "tags/233", "tags/234", "tags/235", "tags/236", "tags/237", "tags/238"
+        ]
       },
       {
-        name: "list",
-        title: "读者群",
-        type: "select",
-        categories: ["全部", "国产漫画", "日本漫画", "韩国漫画", "欧美漫画"],
-        itemValues: ["all", "1", "2", "3", "4"],
-        default: "all"
+        name: "读者群",
+        type: "fixed",
+        categories: ["国产漫画", "日本漫画", "韩国漫画", "欧美漫画"],
+        itemType: "category",
+        categoryParams: ["list/1", "list/2", "list/3", "list/4"]
       },
       {
-        name: "finish",
-        title: "进度",
-        type: "select",
-        categories: ["全部", "连载", "完结"],
-        itemValues: ["all", "1", "2"],
-        default: "all"
+        name: "进度",
+        type: "fixed",
+        categories: ["连载", "完结"],
+        itemType: "category",
+        categoryParams: ["finish/1", "finish/2"]
       },
       {
-        name: "city",
-        title: "地区",
-        type: "select",
-        categories: ["全部", "内地", "港台", "韩国", "日本", "欧美"],
-        itemValues: ["all", "42", "43", "44", "45", "134"],
-        default: "all"
+        name: "地区",
+        type: "fixed",
+        categories: ["内地", "港台", "韩国", "日本", "欧美"],
+        itemType: "category",
+        categoryParams: ["city/42", "city/43", "city/44", "city/45", "city/134"]
       }
-    ]
+    ],
+    enableRankingPage: false
   };
 
   categoryComics = {
-    load: async (options, page) => {
+    load: async (category, param, options, page) => {
       let path = "";
-      if (options.type && options.type !== "category") {
-        path = `/${options.type}`;
-      } else if (options.tags && options.tags !== "all") {
-        path = `/category/tags/${options.tags}`;
-      } else if (options.list && options.list !== "all") {
-        path = `/category/list/${options.list}`;
-      } else if (options.city && options.city !== "all") {
-        path = `/category/city/${options.city}`;
-      } else if (options.finish && options.finish !== "all") {
-        path = `/category/finish/${options.finish}`;
+      if (param && param !== "all") {
+        path = `/category/${param}`;
       } else {
         path = `/category`;
       }
 
-      const url = page > 1 ? `${this.baseUrl}${path}/page/${page}` : `${this.baseUrl}${path}`;
+      const pageNum = typeof page === "number" ? page : parseInt(page) || 1;
+      const url = pageNum > 1 ? `${this.baseUrl}${path}/page/${pageNum}` : `${this.baseUrl}${path}`;
       const res = await Network.get(url, this.headers);
       if (this.isCloudflare(res.status, res.body)) {
         throw "触发 Cloudflare 5秒盾，请稍后再试。";
@@ -227,25 +215,25 @@ class Bukamh extends ComicSource {
         const items = doc.querySelectorAll(".catagory-list li, .u_list li, .comic-list li, .book-list li");
         const comics = items.map(e => this.parseComic(e)).filter(Boolean);
 
-        let maxPage = page;
+        let maxPage = pageNum;
         const pagebox = doc.querySelector(".pagebox:not(.yc)");
         if (pagebox) {
           const numText = pagebox.querySelector(".datanum")?.text || "";
           const m = numText.match(/共\s*(\d+)\s*页/);
           if (m) {
             const p = parseInt(m[1]);
-            maxPage = !isNaN(p) && p > 0 ? p : page;
+            maxPage = !isNaN(p) && p > 0 ? p : pageNum;
           } else {
             const lastLink = pagebox.querySelector("a:last-child")?.attributes?.href || "";
             const pm = lastLink.match(/page\/(\d+)/);
             if (pm) {
               const p = parseInt(pm[1]);
-              maxPage = !isNaN(p) && p > 0 ? p : page;
+              maxPage = !isNaN(p) && p > 0 ? p : pageNum;
             }
           }
         }
-        if (comics.length > 0 && maxPage < page) {
-          maxPage = page + 1;
+        if (comics.length > 0 && maxPage < pageNum) {
+          maxPage = pageNum + 1;
         }
 
         return { comics, maxPage };
@@ -262,8 +250,9 @@ class Bukamh extends ComicSource {
         return { comics: [], maxPage: 1 };
       }
 
-      const url = page > 1
-        ? `${this.baseUrl}/index.php/search?key=${encodeURIComponent(trimmed)}&page=${page}`
+      const pageNum = typeof page === "number" ? page : parseInt(page) || 1;
+      const url = pageNum > 1
+        ? `${this.baseUrl}/index.php/search?key=${encodeURIComponent(trimmed)}&page=${pageNum}`
         : `${this.baseUrl}/index.php/search?key=${encodeURIComponent(trimmed)}`;
 
       const res = await Network.get(url, {
@@ -363,12 +352,14 @@ class Bukamh extends ComicSource {
         if (updateTime) tags["更新时间"] = [updateTime];
 
         return new ComicDetails({
-          title,
+          title: String(title),
+          subtitle: String(author),
+          subTitle: String(author),
           cover: this.fixUrl(cover),
-          description,
+          description: String(description),
           tags,
           chapters,
-          updateTime: updateTime || status
+          updateTime: String(updateTime || status)
         });
       } finally {
         doc.dispose();
