@@ -2,9 +2,9 @@
 class Acgncc extends ComicSource {
   name = "ACGN漫画";
   key = "acgncc";
-  version = "1.0.2";
+  version = "1.0.3";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.2/acgncc.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.3/acgncc.js";
 
   settings = {
     domains: {
@@ -45,11 +45,32 @@ class Acgncc extends ComicSource {
   extractId(href) {
     if (!href) return "";
     let m = href.match(/manhua-([^\.]+)\.htm/i);
-    return m ? m[1] : href.replace(/^\/?manhua-/, "").replace(/\.htm$/, "").replace(/^\//, "");
+    if (m) return m[1];
+    let mView = href.match(/view-(\d+)\.htm/i);
+    if (mView) return `view-${mView[1]}`;
+    return href.replace(/^\/?manhua-/, "").replace(/\.htm$/, "").replace(/^\//, "");
+  }
+
+  s2t(str) {
+    if (!str) return "";
+    const map = {
+      '爱': '愛', '恋': '戀', '后': '後', '宫': '宮', '历': '歷', '史': '史',
+      '战': '戰', '争': '爭', '愈': '癒', '励': '勵', '志': '志', '侠': '俠',
+      '机': '機', '乐': '樂', '舞': '舞', '蹈': '蹈', '职': '職', '场': '場',
+      '魔': '魔', '幻': '幻', '单': '單', '本': '本', '险': '險', '斗': '鬥',
+      '侦': '偵', '探': '探', '竞': '競', '技': '技', '东': '東', '方': '方',
+      '鬼': '鬼', '校': '校', '园': '園', '伪': '偽', '娘': '娘', '悬': '懸',
+      '疑': '疑', '画': '畫', '集': '集', '龙': '龍', '珠': '珠', '王': '王',
+      '海': '海', '贼': '賊', '火': '火', '影': '影', '进': '進', '击': '擊',
+      '巨': '巨', '人': '人', '死': '死', '神': '神', '银': '銀', '魂': '魂',
+      '拳': '拳', '超': '超', '异': '異', '世': '世', '界': '界', '勇': '勇',
+      '者': '者', '转': '轉', '生': '生', '恶': '惡', '灵': '靈', '剑': '劍'
+    };
+    return str.split('').map(c => map[c] || c).join('');
   }
 
   parseListItem(item) {
-    let link = item.querySelector(".list_r h2 a, h2 a, dt a");
+    let link = item.querySelector(".list_r h2 a, h2 a, dt a, a[href*='manhua-']");
     if (!link) return null;
     let href = link.attributes.href || "";
     let id = this.extractId(href);
@@ -58,8 +79,16 @@ class Acgncc extends ComicSource {
 
     let img = item.querySelector(".list_l img, img");
     let cover = img?.attributes?.src || img?.attributes?.["data-src"] || "";
+    let lastEl = item.querySelector(".list_l .last a, .last a, a[href*='view-']");
     let last = item.querySelector(".list_l .last, .last")?.text?.trim() || "";
     let desc = item.querySelector(".list_r p, p")?.text?.trim() || "";
+
+    // 针对新漫画logo图404问题，若存在近期章节，采用首话第1页高清图兜底
+    let chapId = (lastEl?.attributes?.href || "").match(/view-(\d+)\.htm/i)?.[1];
+    if (chapId && parseInt(chapId) > 400000) {
+      let dir = Math.ceil(parseInt(chapId) / 100) * 100;
+      cover = `https://img.acgn.cc/img/${dir}/${chapId}/1.jpg`;
+    }
 
     return new Comic({
       id,
@@ -87,25 +116,33 @@ class Acgncc extends ComicSource {
           let p0Items = panels[0].querySelectorAll("li");
           let latestList = [];
           for (let li of p0Items) {
-            let a = li.querySelector("div a, a");
+            // 修复精确选择器：必须从包含 /manhua- 的链接提取漫画ID与标题
+            let comicLink = li.querySelector("div a, a[href*='manhua-']");
+            if (!comicLink) continue;
+            let id = this.extractId(comicLink.attributes.href || "");
+            let title = comicLink.attributes.title || comicLink.text?.trim() || "";
+            if (!id || !title) continue;
+
+            let chapLink = li.querySelector("a[href*='view-']");
             let img = li.querySelector("img");
             let span = li.querySelector("span");
-            if (a) {
-              let id = this.extractId(a.attributes.href || "");
-              let title = a.attributes.title || a.text?.trim() || "";
-              let cover = img?.attributes?.src || "";
-              let subTitle = span?.text?.trim() || "";
-              if (id && title) {
-                latestList.push(new Comic({
-                  id,
-                  title,
-                  subTitle,
-                  cover: this.fixUrl(cover),
-                  tags: [],
-                  description: ""
-                }));
-              }
+            let subTitle = span?.text?.trim() || "";
+            let cover = img?.attributes?.src || "";
+
+            let chapId = (chapLink?.attributes?.href || "").match(/view-(\d+)\.htm/i)?.[1];
+            if (chapId && parseInt(chapId) > 400000) {
+              let dir = Math.ceil(parseInt(chapId) / 100) * 100;
+              cover = `https://img.acgn.cc/img/${dir}/${chapId}/1.jpg`;
             }
+
+            latestList.push(new Comic({
+              id,
+              title,
+              subTitle,
+              cover: this.fixUrl(cover),
+              tags: [],
+              description: ""
+            }));
           }
           if (latestList.length > 0) {
             parts.push({
@@ -122,25 +159,32 @@ class Acgncc extends ComicSource {
           for (let i = 1; i < panels.length; i++) {
             let lis = panels[i].querySelectorAll("li");
             for (let li of lis) {
-              let a = li.querySelector("div a, a");
+              let comicLink = li.querySelector("div a, a[href*='manhua-']");
+              if (!comicLink) continue;
+              let id = this.extractId(comicLink.attributes.href || "");
+              let title = comicLink.attributes.title || comicLink.text?.trim() || "";
+              if (!id || !title) continue;
+
+              let chapLink = li.querySelector("a[href*='view-']");
               let img = li.querySelector("img");
               let span = li.querySelector("span");
-              if (a) {
-                let id = this.extractId(a.attributes.href || "");
-                let title = a.attributes.title || a.text?.trim() || "";
-                let cover = img?.attributes?.src || "";
-                let subTitle = span?.text?.trim() || "";
-                if (id && title) {
-                  recentList.push(new Comic({
-                    id,
-                    title,
-                    subTitle,
-                    cover: this.fixUrl(cover),
-                    tags: [],
-                    description: ""
-                  }));
-                }
+              let subTitle = span?.text?.trim() || "";
+              let cover = img?.attributes?.src || "";
+
+              let chapId = (chapLink?.attributes?.href || "").match(/view-(\d+)\.htm/i)?.[1];
+              if (chapId && parseInt(chapId) > 400000) {
+                let dir = Math.ceil(parseInt(chapId) / 100) * 100;
+                cover = `https://img.acgn.cc/img/${dir}/${chapId}/1.jpg`;
               }
+
+              recentList.push(new Comic({
+                id,
+                title,
+                subTitle,
+                cover: this.fixUrl(cover),
+                tags: [],
+                description: ""
+              }));
             }
           }
           if (recentList.length > 0) {
@@ -152,7 +196,7 @@ class Acgncc extends ComicSource {
           }
         }
 
-        // 3. 分类推荐 (32个分类专栏展位特色漫画)
+        // 3. 分类精选 (32个分类专栏展位特色漫画)
         let featuredNodes = doc.querySelectorAll(".cate_cont_l a");
         let featuredList = [];
         for (let a of featuredNodes) {
@@ -313,8 +357,9 @@ class Acgncc extends ComicSource {
         let kw = (keyword || "").trim();
         if (!kw) return { comics: [], maxPage: 1 };
         let p = parseInt(page) || 1;
+        let kwTrad = this.s2t(kw);
 
-        // 1. 优先尝试直接匹配漫画ID / 拼音别名 (如 huoyingrenzhe)
+        // 1. 优先尝试直接匹配漫画ID / 拼音别名 (如 favoworks8, naruto)
         let cleanId = kw.replace(/^\/?manhua-/, "").replace(/\.htm$/, "");
         if (/^[a-z0-9_-]+$/i.test(cleanId) && cleanId.length > 2) {
           let directRes = await Network.get(`${this.baseUrl}/manhua-${cleanId}.htm`, this.headers);
@@ -352,20 +397,25 @@ class Acgncc extends ComicSource {
           }
         }
 
-        // 2. 检查是否匹配分类关键字
+        // 2. 检查是否匹配分类关键字 (支持简繁体)
         const categoryMap = {
-          "耽美": "18", "热血": "19", "後宮": "20", "后宫": "20", "歷史": "21", "历史": "21",
-          "戰爭": "22", "战争": "22", "萌系": "23", "宅男腐女": "24", "治癒": "25", "治愈": "25",
-          "勵志": "26", "励志": "26", "武俠": "27", "武侠": "27", "機戰": "28", "机战": "28",
-          "音樂舞蹈": "29", "音乐舞蹈": "29", "美食": "30", "職場": "31", "职场": "31",
-          "西方魔幻": "32", "高清单行本": "33", "高清單行本": "33", "冒險": "1", "冒险": "1",
-          "搞笑": "2", "格鬥": "3", "格斗": "3", "科幻": "4", "愛情": "5", "爱情": "5",
-          "偵探": "6", "侦探": "6", "競技": "7", "竞技": "7", "魔法": "8", "東方神鬼": "9",
-          "东方神鬼": "9", "校園": "10", "校园": "10", "恐怖": "11", "其他": "12", "四格": "13",
-          "生活親情": "14", "生活亲情": "14", "百合": "15", "偽娘": "16", "伪娘": "16", "懸疑": "17", "悬疑": "17"
+          "耽美": "18", "bl": "18", "热血": "19", "熱血": "19", "後宮": "20", "后宫": "20",
+          "歷史": "21", "历史": "21", "戰爭": "22", "战争": "22", "萌系": "23", "宅男腐女": "24",
+          "治癒": "25", "治愈": "25", "勵志": "26", "励志": "26", "武俠": "27", "武侠": "27",
+          "機戰": "28", "机战": "28", "音樂舞蹈": "29", "音乐舞蹈": "29", "音乐": "29", "舞蹈": "29",
+          "美食": "30", "職場": "31", "职场": "31", "西方魔幻": "32", "魔幻": "32",
+          "高清单行本": "33", "高清單行本": "33", "单行本": "33", "單行本": "33",
+          "冒險": "1", "冒险": "1", "搞笑": "2", "格鬥": "3", "格斗": "3", "科幻": "4",
+          "愛情": "5", "爱情": "5", "恋爱": "5", "戀愛": "5", "言情": "5",
+          "偵探": "6", "侦探": "6", "推理": "6", "競技": "7", "竞技": "7", "体育": "7",
+          "魔法": "8", "東方神鬼": "9", "东方神鬼": "9", "神鬼": "9",
+          "校園": "10", "校园": "10", "恐怖": "11", "其他": "12", "四格": "13",
+          "生活親情": "14", "生活亲情": "14", "百合": "15", "gl": "15", "偽娘": "16", "伪娘": "16",
+          "懸疑": "17", "悬疑": "17"
         };
+        let lowerKw = kw.toLowerCase();
         for (let [cName, cId] of Object.entries(categoryMap)) {
-          if (kw === cName || kw.includes(cName)) {
+          if (lowerKw === cName || lowerKw.includes(cName) || kwTrad.toLowerCase().includes(cName)) {
             return await this.categoryComics.load("题材", cId, options, p);
           }
         }
@@ -375,32 +425,88 @@ class Acgncc extends ComicSource {
           return await this.categoryComics.load("字母", kw.toLowerCase(), options, p);
         }
 
-        // 4. 原站作者检索路由
-        let authorUrl = `${this.baseUrl}/author/${encodeURIComponent(kw)}${p > 1 ? '?page=' + p : ''}`;
-        let res = await Network.get(authorUrl, this.headers);
-        if (res.status === 200) {
-          let doc = new HtmlDocument(res.body);
-          try {
-            let items = doc.querySelectorAll("#display li, .display.list2 li, .container ul li");
-            let comics = [];
-            for (let item of items) {
-              let c = this.parseListItem(item);
-              if (c) comics.push(c);
-            }
-            if (comics.length > 0) {
-              let maxPage = p;
-              let lastA = doc.querySelector("#pagination a[rel='last']");
-              if (lastA) {
-                let val = parseInt(lastA.attributes["_val"] || lastA.text?.trim() || "");
-                if (!isNaN(val) && val > 0) maxPage = val;
+        // 4. 原站作者检索路由 (简繁双重匹配)
+        for (let qAuthor of [kw, kwTrad]) {
+          let authorUrl = `${this.baseUrl}/author/${encodeURIComponent(qAuthor)}${p > 1 ? '?page=' + p : ''}`;
+          let res = await Network.get(authorUrl, this.headers);
+          if (res.status === 200) {
+            let doc = new HtmlDocument(res.body);
+            try {
+              let items = doc.querySelectorAll("#display li, .display.list2 li, .container ul li");
+              let comics = [];
+              for (let item of items) {
+                let c = this.parseListItem(item);
+                if (c) comics.push(c);
               }
-              return {
-                comics,
-                maxPage: !isNaN(maxPage) && maxPage > 0 ? maxPage : 1
-              };
+              if (comics.length > 0) {
+                let maxPage = p;
+                let lastA = doc.querySelector("#pagination a[rel='last']");
+                if (lastA) {
+                  let val = parseInt(lastA.attributes["_val"] || lastA.text?.trim() || "");
+                  if (!isNaN(val) && val > 0) maxPage = val;
+                }
+                return {
+                  comics,
+                  maxPage: !isNaN(maxPage) && maxPage > 0 ? maxPage : 1
+                };
+              }
+            } finally {
+              doc.dispose();
             }
-          } finally {
-            doc.dispose();
+          }
+        }
+
+        // 5. 全站热门/首页全量聚合检索 (Title 模糊匹配，解决无服务端搜索接口的问题)
+        if (p === 1) {
+          let homeRes = await Network.get(this.baseUrl + "/", this.headers);
+          if (homeRes.status === 200) {
+            let doc = new HtmlDocument(homeRes.body);
+            try {
+              let allLis = doc.querySelectorAll(".tabs-panel li, .cate_cont_l a");
+              let matchedComics = [];
+              let visitedIds = new Set();
+              let qList = [kw.toLowerCase(), kwTrad.toLowerCase()];
+
+              for (let el of allLis) {
+                let comicLink = el.tagName === "a" ? el : el.querySelector("div a, a[href*='manhua-']");
+                if (!comicLink) continue;
+                let id = this.extractId(comicLink.attributes.href || "");
+                let title = comicLink.attributes.title || comicLink.text?.trim() || "";
+                if (!id || !title || visitedIds.has(id)) continue;
+
+                let titleLower = title.toLowerCase();
+                let isMatch = qList.some(q => titleLower.includes(q));
+                if (isMatch) {
+                  visitedIds.add(id);
+                  let img = el.querySelector("img");
+                  let cover = img?.attributes?.src || "";
+                  let chapLink = el.querySelector("a[href*='view-']");
+                  let chapId = (chapLink?.attributes?.href || "").match(/view-(\d+)\.htm/i)?.[1];
+                  if (chapId && parseInt(chapId) > 400000) {
+                    let dir = Math.ceil(parseInt(chapId) / 100) * 100;
+                    cover = `https://img.acgn.cc/img/${dir}/${chapId}/1.jpg`;
+                  }
+                  let span = el.querySelector("span");
+                  matchedComics.push(new Comic({
+                    id,
+                    title,
+                    subTitle: span?.text?.trim() || "",
+                    cover: this.fixUrl(cover),
+                    tags: [],
+                    description: ""
+                  }));
+                }
+              }
+
+              if (matchedComics.length > 0) {
+                return {
+                  comics: matchedComics,
+                  maxPage: 1
+                };
+              }
+            } finally {
+              doc.dispose();
+            }
           }
         }
 
@@ -414,6 +520,19 @@ class Acgncc extends ComicSource {
   comic = {
     loadInfo: async (id) => {
       let cleanId = id.replace(/^\/?manhua-/, "").replace(/\.htm$/, "");
+
+      // 自动修复：如果传入的是章节ID (例如 view-483344 或纯数字)，通过章节页面溯源漫画真实ID
+      if (cleanId.startsWith("view-") || /^\d+$/.test(cleanId)) {
+        let epNum = cleanId.replace(/^view-/, "");
+        let epRes = await Network.get(`${this.baseUrl}/view-${epNum}.htm`, this.headers);
+        if (epRes.status === 200) {
+          let m = epRes.body.match(/href="\/manhua-([^\.]+)\.htm"/i);
+          if (m && m[1]) {
+            cleanId = m[1];
+          }
+        }
+      }
+
       let url = `${this.baseUrl}/manhua-${cleanId}.htm`;
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `详情加载失败: HTTP ${res.status}`;
@@ -463,6 +582,15 @@ class Acgncc extends ComicSource {
               visited.add(epId);
               chapList.push({ epId, ctitle });
             }
+          }
+        }
+
+        // 若存在近期章节(> 400000)，原站 logo 常为 404，优先使用章节第 1 页作为封面
+        if (chapList.length > 0) {
+          let latestEp = parseInt(chapList[0].epId);
+          if (latestEp > 400000) {
+            let dir = Math.ceil(latestEp / 100) * 100;
+            cover = `https://img.acgn.cc/img/${dir}/${latestEp}/1.jpg`;
           }
         }
 

@@ -282,8 +282,8 @@
   {
     "name": "ACGN漫画",
     "key": "acgncc",
-    "version": "1.0.2",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.2/acgncc.js",
+    "version": "1.0.3",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.3/acgncc.js",
     "fileName": "acgncc.js",
     "description": "ACGN漫画 (acgncc)"
   },
