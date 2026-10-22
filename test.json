@@ -290,8 +290,8 @@
   {
     "name": "ACGN漫画",
     "key": "acgncc",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/acgncc.js",
+    "version": "1.0.1",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.1/acgncc.js",
     "fileName": "acgncc.js",
     "description": "ACGN漫画 (acgncc)"
   },
@@ -602,8 +602,8 @@
   {
     "name": "一本漫画",
     "key": "yibenmanhua",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/yibenmanhua.js",
+    "version": "1.0.1",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@yibenmanhua-v1.0.1/yibenmanhua.js",
     "fileName": "yibenmanhua.js",
     "description": "一本漫画 (yibenmanhua)"
   },
