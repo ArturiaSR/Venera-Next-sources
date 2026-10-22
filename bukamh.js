@@ -2,9 +2,9 @@
 class Bukamh extends ComicSource {
   name = "布卡漫画";
   key = "bukamh";
-  version = "1.0.2";
+  version = "1.0.3";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.2/bukamh.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.3/bukamh.js";
 
   settings = {
     domains: {
@@ -255,10 +255,24 @@ class Bukamh extends ComicSource {
         ? `${this.baseUrl}/index.php/search?key=${encodeURIComponent(trimmed)}&page=${pageNum}`
         : `${this.baseUrl}/index.php/search?key=${encodeURIComponent(trimmed)}`;
 
-      const res = await Network.get(url, {
-        ...this.headers,
-        "Referer": `${this.baseUrl}/custom/search`
-      });
+      const fetchSearch = async () => {
+        return await Network.get(url, {
+          ...this.headers,
+          "Referer": `${this.baseUrl}/custom/search`
+        });
+      };
+
+      let res = await fetchSearch();
+
+      if (this.isCloudflare(res.status, res.body)) {
+        throw "触发 Cloudflare 5秒盾，请稍后再试。";
+      }
+
+      // 如果遇到原站频控“搜索繁忙”，自动延时 4.5 秒重试 1 次
+      if (res.body.includes('"搜索繁忙"')) {
+        await new Promise((resolve) => setTimeout(resolve, 4500));
+        res = await fetchSearch();
+      }
 
       if (this.isCloudflare(res.status, res.body)) {
         throw "触发 Cloudflare 5秒盾，请稍后再试。";
@@ -266,7 +280,7 @@ class Bukamh extends ComicSource {
       if (res.status !== 200) throw `搜索请求失败: ${res.status}`;
 
       if (res.body.includes('"搜索繁忙"')) {
-        throw "布卡漫画原站搜索过于频繁（频控限制），请等待 5-10 秒后再试。";
+        throw "布卡漫画原站搜索过于频繁（频控限制），请等待 5-10 秒后再试，建议使用核心关键词搜索。";
       }
 
       const doc = new HtmlDocument(res.body);

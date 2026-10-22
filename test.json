@@ -290,8 +290,8 @@
   {
     "name": "布卡漫画",
     "key": "bukamh",
-    "version": "1.0.2",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.2/bukamh.js",
+    "version": "1.0.3",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.3/bukamh.js",
     "fileName": "bukamh.js",
     "description": "布卡漫画 (bukamh)"
   },
