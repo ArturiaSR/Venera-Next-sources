@@ -14,9 +14,9 @@ function fitToRow(list, max = 0) {
 class Mkzhan extends ComicSource {
   name = "漫客栈";
   key = "mkzhan";
-  version = "1.0.1";
+  version = "1.0.2";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mkzhan-v1.0.1/mkzhan.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mkzhan-v1.0.2/mkzhan.js";
 
   settings = {
     domains: {
@@ -91,7 +91,7 @@ class Mkzhan extends ComicSource {
 
       let doc = new HtmlDocument(res.body);
       try {
-        const result = {};
+        const result = [];
 
         // 提取首页各个板块
         let sections = doc.querySelectorAll(".in-sec-wr");
@@ -112,7 +112,11 @@ class Mkzhan extends ComicSource {
           if (list.length > 0) {
             let fitted = fitToRow(list, 16);
             if (fitted.length > 0) {
-              result[headText] = fitted;
+              result.push({
+                title: headText,
+                comics: fitted,
+                viewMore: null
+              });
             }
           }
         }
@@ -135,77 +139,77 @@ class Mkzhan extends ComicSource {
           "后宫", "玄幻", "悬疑", "恐怖", "灵异", "动作", "科幻", "战争", "古风", "穿越",
           "竞技", "励志", "同人", "真人"
         ],
-        itemType: "category"
-      },
-      {
-        name: "进度",
-        type: "fixed",
-        categories: ["全部", "连载", "完结"],
-        itemType: "category"
+        itemType: "category",
+        categoryParams: [
+          "", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+          "10", "12", "13", "14", "15", "16", "17", "18", "19", "20",
+          "21", "23", "24", "26"
+        ]
       },
       {
         name: "受众",
         type: "fixed",
         categories: ["全部", "少年", "少女", "青年", "少儿"],
-        itemType: "category"
+        itemType: "category",
+        categoryParams: ["", "aud:1", "aud:2", "aud:3", "aud:4"]
       },
       {
         name: "版权",
         type: "fixed",
         categories: ["全部", "独家", "合作"],
-        itemType: "category"
-      },
-      {
-        name: "资费",
-        type: "fixed",
-        categories: ["全部", "免费", "付费", "VIP"],
-        itemType: "category"
-      },
-      {
-        name: "排序",
-        type: "fixed",
-        categories: ["热门人气", "更新时间"],
-        itemType: "category"
+        itemType: "category",
+        categoryParams: ["", "cpr:1", "cpr:2"]
       }
     ]
   };
 
   categoryComics = {
-    load: async (options, page) => {
-      const themeMap = {
-        "全部": "", "霸总": "1", "修真": "2", "恋爱": "3", "校园": "4", "冒险": "5",
-        "搞笑": "6", "生活": "7", "热血": "8", "架空": "9", "后宫": "10", "玄幻": "12",
-        "悬疑": "13", "恐怖": "14", "灵异": "15", "动作": "16", "科幻": "17", "战争": "18",
-        "古风": "19", "穿越": "20", "竞技": "21", "励志": "23", "同人": "24", "真人": "26"
-      };
-      const finishMap = { "全部": "", "连载": "1", "完结": "2" };
-      const audienceMap = { "全部": "", "少年": "1", "少女": "2", "青年": "3", "少儿": "4" };
-      const copyrightMap = { "全部": "", "独家": "1", "合作": "2" };
-      const feeMap = { "全部": "", "免费": "free", "付费": "fee", "VIP": "vip" };
-      const orderMap = { "热门人气": "1", "更新时间": "2" };
+    optionList: [
+      {
+        label: "进度",
+        options: ["-全部", "1-连载", "2-完结"]
+      },
+      {
+        label: "资费",
+        options: ["-全部", "free-免费", "fee-付费", "vip-VIP"]
+      },
+      {
+        label: "排序",
+        options: ["1-热门人气", "2-更新时间"]
+      }
+    ],
+
+    load: async (category, param, options, page) => {
+      let pageNum = typeof page === "number" ? page : (parseInt(page) || 1);
+      if (isNaN(pageNum) || pageNum < 1) pageNum = 1;
 
       let params = [];
-      let theme = themeMap[options[0]] || "";
-      if (theme) params.push(`theme_id=${theme}`);
+      if (param) {
+        if (param.startsWith("aud:")) {
+          params.push(`audience=${param.substring(4)}`);
+        } else if (param.startsWith("cpr:")) {
+          params.push(`copyright=${param.substring(4)}`);
+        } else {
+          params.push(`theme_id=${param}`);
+        }
+      }
 
-      let finish = finishMap[options[1]] || "";
-      if (finish) params.push(`finish=${finish}`);
+      if (options && options.length > 0) {
+        let finish = options[0];
+        if (finish) params.push(`finish=${finish}`);
 
-      let audience = audienceMap[options[2]] || "";
-      if (audience) params.push(`audience=${audience}`);
+        let fee = options[1];
+        if (fee === "free") params.push("is_free=1");
+        else if (fee === "fee") params.push("is_fee=1");
+        else if (fee === "vip") params.push("is_vip=1");
 
-      let copyright = copyrightMap[options[3]] || "";
-      if (copyright) params.push(`copyright=${copyright}`);
+        let order = options[2] || "1";
+        if (order) params.push(`order=${order}`);
+      } else {
+        params.push("order=1");
+      }
 
-      let fee = feeMap[options[4]] || "";
-      if (fee === "free") params.push("is_free=1");
-      else if (fee === "fee") params.push("is_fee=1");
-      else if (fee === "vip") params.push("is_vip=1");
-
-      let order = orderMap[options[5]] || "1";
-      if (order) params.push(`order=${order}`);
-
-      params.push(`page=${page}`);
+      params.push(`page=${pageNum}`);
 
       let url = `${this.baseUrl}/category/?${params.join("&")}`;
       let res = await Network.get(url, this.headers);
@@ -222,7 +226,7 @@ class Mkzhan extends ComicSource {
           }
         }
 
-        let maxPage = comics.length >= 30 ? page + 1 : page;
+        let maxPage = comics.length >= 30 ? pageNum + 1 : pageNum;
         return {
           comics: comics,
           maxPage: maxPage
@@ -235,8 +239,11 @@ class Mkzhan extends ComicSource {
 
   search = {
     load: async (keyword, options, page) => {
+      let pageNum = typeof page === "number" ? page : (parseInt(page) || 1);
+      if (isNaN(pageNum) || pageNum < 1) pageNum = 1;
+
       let q = encodeURIComponent(keyword.trim());
-      let url = `${this.baseUrl}/search/?keyword=${q}&page=${page}`;
+      let url = `${this.baseUrl}/search/?keyword=${q}&page=${pageNum}`;
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `搜索请求失败: ${res.status}`;
 
@@ -259,7 +266,7 @@ class Mkzhan extends ComicSource {
           }
         }
 
-        let maxPage = comics.length >= 20 ? page + 1 : page;
+        let maxPage = comics.length >= 20 ? pageNum + 1 : pageNum;
         return {
           comics: comics,
           maxPage: maxPage
