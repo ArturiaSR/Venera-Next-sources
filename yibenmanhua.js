@@ -2,9 +2,9 @@
 class Yibenmanhua extends ComicSource {
   name = "一本漫画";
   key = "yibenmanhua";
-  version = "1.0.1";
+  version = "1.0.2";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@yibenmanhua-v1.0.1/yibenmanhua.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@yibenmanhua-v1.0.2/yibenmanhua.js";
 
   settings = {
     domains: {
@@ -48,14 +48,13 @@ class Yibenmanhua extends ComicSource {
     title: "一本漫画",
     type: "multiPartPage",
     load: async (page) => {
-      if (page > 1) return {};
+      if (page > 1) return [];
       let url = `${this.baseUrl}/api/cartoon/todayRecommend`;
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `加载发现页失败: HTTP ${res.status}`;
       let json = JSON.parse(res.body);
-      if (json.status !== "200" || !json.data) return {};
+      if (json.status !== "200" || !json.data) return [];
 
-      let result = {};
       let list = json.data.today_recommend?.list;
       if (list && Array.isArray(list) && list.length > 0) {
         let comics = list.map(item => new Comic({
@@ -66,9 +65,15 @@ class Yibenmanhua extends ComicSource {
           tags: item.cartoon_tags || [],
           description: item.cartoon_info || ""
         }));
-        result["每日精选"] = this.fitToRow(comics, 12);
+        return [
+          {
+            title: "每日精选",
+            comics: this.fitToRow(comics, 12),
+            viewMore: null
+          }
+        ];
       }
-      return result;
+      return [];
     }
   }];
 

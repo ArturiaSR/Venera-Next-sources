@@ -2,9 +2,9 @@
 class Acgncc extends ComicSource {
   name = "ACGN漫画";
   key = "acgncc";
-  version = "1.0.1";
+  version = "1.0.2";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.1/acgncc.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.2/acgncc.js";
 
   settings = {
     domains: {
@@ -79,7 +79,7 @@ class Acgncc extends ComicSource {
       if (res.status !== 200) throw `加载首页失败: HTTP ${res.status}`;
       let doc = new HtmlDocument(res.body);
       try {
-        const result = {};
+        const parts = [];
 
         // 1. 最新更新 (tabs-panel 0)
         let panels = doc.querySelectorAll(".tabs-panel");
@@ -108,7 +108,11 @@ class Acgncc extends ComicSource {
             }
           }
           if (latestList.length > 0) {
-            result["最新更新"] = this.fitToRow(latestList, 12);
+            parts.push({
+              title: "最新更新",
+              comics: this.fitToRow(latestList, 12),
+              viewMore: null
+            });
           }
         }
 
@@ -140,7 +144,11 @@ class Acgncc extends ComicSource {
             }
           }
           if (recentList.length > 0) {
-            result["近期连载"] = this.fitToRow(recentList, 24);
+            parts.push({
+              title: "近期连载",
+              comics: this.fitToRow(recentList, 24),
+              viewMore: null
+            });
           }
         }
 
@@ -164,10 +172,14 @@ class Acgncc extends ComicSource {
           }
         }
         if (featuredList.length > 0) {
-          result["分类精选"] = this.fitToRow(featuredList, 32);
+          parts.push({
+            title: "分类精选",
+            comics: this.fitToRow(featuredList, 32),
+            viewMore: null
+          });
         }
 
-        return result;
+        return parts;
       } finally {
         doc.dispose();
       }
@@ -256,9 +268,10 @@ class Acgncc extends ComicSource {
   categoryComics = {
     load: async (category, param, options, page) => {
       let isLetter = /^[a-z]|0-9$/i.test(param);
+      let p = parseInt(page) || 1;
       let url = isLetter
-        ? (page === 1 ? `${this.baseUrl}/pinyin-${param}.htm` : `${this.baseUrl}/pinyin-${param}.htm?page=${page}`)
-        : (page === 1 ? `${this.baseUrl}/cate-${param}.htm` : `${this.baseUrl}/cate-${param}.htm?page=${page}`);
+        ? (p === 1 ? `${this.baseUrl}/pinyin-${param}.htm` : `${this.baseUrl}/pinyin-${param}.htm?page=${p}`)
+        : (p === 1 ? `${this.baseUrl}/cate-${param}.htm` : `${this.baseUrl}/cate-${param}.htm?page=${p}`);
 
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `分类加载失败: HTTP ${res.status}`;
@@ -271,7 +284,7 @@ class Acgncc extends ComicSource {
           if (c) comics.push(c);
         }
 
-        let maxPage = page;
+        let maxPage = p;
         let lastA = doc.querySelector("#pagination a[rel='last']");
         if (lastA) {
           let val = parseInt(lastA.attributes["_val"] || lastA.text?.trim() || "");
@@ -296,38 +309,104 @@ class Acgncc extends ComicSource {
 
   search = {
     load: async (keyword, options, page) => {
-      let kw = keyword ? keyword.trim() : "";
-      if (!kw) return { comics: [], maxPage: 1 };
-
-      // 原站全站依托 Google Custom Search，站内原生仅开放作者路由检索
-      let url = `${this.baseUrl}/author/${encodeURIComponent(kw)}${page > 1 ? '?page=' + page : ''}`;
-      let res = await Network.get(url, this.headers);
-      if (res.status === 404 || res.status !== 200) {
-        return { comics: [], maxPage: 1 };
-      }
-
-      let doc = new HtmlDocument(res.body);
       try {
-        let items = doc.querySelectorAll("#display li, .display.list2 li, .container ul li");
-        let comics = [];
-        for (let item of items) {
-          let c = this.parseListItem(item);
-          if (c) comics.push(c);
+        let kw = (keyword || "").trim();
+        if (!kw) return { comics: [], maxPage: 1 };
+        let p = parseInt(page) || 1;
+
+        // 1. 优先尝试直接匹配漫画ID / 拼音别名 (如 huoyingrenzhe)
+        let cleanId = kw.replace(/^\/?manhua-/, "").replace(/\.htm$/, "");
+        if (/^[a-z0-9_-]+$/i.test(cleanId) && cleanId.length > 2) {
+          let directRes = await Network.get(`${this.baseUrl}/manhua-${cleanId}.htm`, this.headers);
+          if (directRes.status === 200) {
+            let doc = new HtmlDocument(directRes.body);
+            try {
+              let title = doc.querySelector(".list_navbox h3 a, #breadcrumb h1, h1")?.text?.trim() || cleanId;
+              let coverImg = doc.querySelector(".box_info img[src*='/logo/'], .box_info2 img[src*='/logo/'], .box_info img");
+              let cover = coverImg?.attributes?.src || "";
+              let author = "";
+              let metaLis = doc.querySelectorAll(".load01_r li.mss");
+              for (let li of metaLis) {
+                let txt = li.text?.trim() || "";
+                if (txt.includes("漫畫作者")) {
+                  author = li.querySelector("span")?.text?.trim() || "";
+                  break;
+                }
+              }
+              return {
+                comics: [
+                  new Comic({
+                    id: cleanId,
+                    title,
+                    subTitle: author,
+                    cover: this.fixUrl(cover),
+                    tags: [],
+                    description: ""
+                  })
+                ],
+                maxPage: 1
+              };
+            } finally {
+              doc.dispose();
+            }
+          }
         }
 
-        let maxPage = page;
-        let lastA = doc.querySelector("#pagination a[rel='last']");
-        if (lastA) {
-          let val = parseInt(lastA.attributes["_val"] || lastA.text?.trim() || "");
-          if (!isNaN(val) && val > 0) maxPage = val;
-        }
-
-        return {
-          comics,
-          maxPage: !isNaN(maxPage) && maxPage > 0 ? maxPage : 1
+        // 2. 检查是否匹配分类关键字
+        const categoryMap = {
+          "耽美": "18", "热血": "19", "後宮": "20", "后宫": "20", "歷史": "21", "历史": "21",
+          "戰爭": "22", "战争": "22", "萌系": "23", "宅男腐女": "24", "治癒": "25", "治愈": "25",
+          "勵志": "26", "励志": "26", "武俠": "27", "武侠": "27", "機戰": "28", "机战": "28",
+          "音樂舞蹈": "29", "音乐舞蹈": "29", "美食": "30", "職場": "31", "职场": "31",
+          "西方魔幻": "32", "高清单行本": "33", "高清單行本": "33", "冒險": "1", "冒险": "1",
+          "搞笑": "2", "格鬥": "3", "格斗": "3", "科幻": "4", "愛情": "5", "爱情": "5",
+          "偵探": "6", "侦探": "6", "競技": "7", "竞技": "7", "魔法": "8", "東方神鬼": "9",
+          "东方神鬼": "9", "校園": "10", "校园": "10", "恐怖": "11", "其他": "12", "四格": "13",
+          "生活親情": "14", "生活亲情": "14", "百合": "15", "偽娘": "16", "伪娘": "16", "懸疑": "17", "悬疑": "17"
         };
-      } finally {
-        doc.dispose();
+        for (let [cName, cId] of Object.entries(categoryMap)) {
+          if (kw === cName || kw.includes(cName)) {
+            return await this.categoryComics.load("题材", cId, options, p);
+          }
+        }
+
+        // 3. 检查是否匹配拼音字母单字母索引
+        if (/^[a-z]$/i.test(kw) || kw === "0-9") {
+          return await this.categoryComics.load("字母", kw.toLowerCase(), options, p);
+        }
+
+        // 4. 原站作者检索路由
+        let authorUrl = `${this.baseUrl}/author/${encodeURIComponent(kw)}${p > 1 ? '?page=' + p : ''}`;
+        let res = await Network.get(authorUrl, this.headers);
+        if (res.status === 200) {
+          let doc = new HtmlDocument(res.body);
+          try {
+            let items = doc.querySelectorAll("#display li, .display.list2 li, .container ul li");
+            let comics = [];
+            for (let item of items) {
+              let c = this.parseListItem(item);
+              if (c) comics.push(c);
+            }
+            if (comics.length > 0) {
+              let maxPage = p;
+              let lastA = doc.querySelector("#pagination a[rel='last']");
+              if (lastA) {
+                let val = parseInt(lastA.attributes["_val"] || lastA.text?.trim() || "");
+                if (!isNaN(val) && val > 0) maxPage = val;
+              }
+              return {
+                comics,
+                maxPage: !isNaN(maxPage) && maxPage > 0 ? maxPage : 1
+              };
+            }
+          } finally {
+            doc.dispose();
+          }
+        }
+
+        return { comics: [], maxPage: 1 };
+      } catch (e) {
+        return { comics: [], maxPage: 1 };
       }
     }
   };
