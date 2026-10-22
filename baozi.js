@@ -32,12 +32,12 @@ class Baozi extends ComicSource {
   // 唯一标识符
   key = "baozi";
 
-  version = "1.1.8";
+  version = "1.1.9";
 
   minAppVersion = "1.4.0";
 
   // 更新链接 (必须使用携带源名称前缀的具体 Git Tag)
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@baozi-v1.1.8/baozi.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@baozi-v1.1.9/baozi.js";
 
   settings = {
     language: {
@@ -66,13 +66,12 @@ class Baozi extends ComicSource {
       title: "图片资源站域名",
       type: "select",
       options: [
-        { value: "", text: "默认 (跟随站点)" },
-        { value: "s1.bzcdn.net", text: "s1.bzcdn.net (推荐)" },
-        { value: "as-rsa1-usla.baozicdn.com", text: "as-rsa1-usla.baozicdn.com" },
-        { value: "as.baozimh.com", text: "as.baozimh.com" },
-        { value: "s1.baozicdn.com", text: "s1.baozicdn.com" },
+        { value: "as-rsa1-usla.baozicdn.com", text: "baozicdn.com (无水印超清推荐)" },
+        { value: "s1.baozicdn.com", text: "s1.baozicdn.com (备用无水印)" },
+        { value: "as.baozimh.com", text: "as.baozimh.com (备用无水印)" },
+        { value: "s1.bzcdn.net", text: "s1.bzcdn.net (原站Web默认，含P2水印广告)" },
       ],
-      default: "",
+      default: "as-rsa1-usla.baozicdn.com",
     },
     image_quality: {
       title: "图片画质",
@@ -426,10 +425,15 @@ class Baozi extends ComicSource {
   comic = {
     // 关键：正文图片加载标头，缺少会导致阅读器 403
     onImageLoad: (url, comicId, epId) => {
-      // 关键防御：彻底清理 /w640 路径片段（部分图片在 CDN 上无 640p 缩略图会导致 404）
-      const cleanUrl = url
-        ? url.replace(/\/w640\//g, "/").replace(/\/w640(?=\/|$)/g, "")
-        : url;
+      let cleanUrl = url || "";
+      // 关键防御 1：彻底清理 /w640 路径片段（防 404）
+      cleanUrl = cleanUrl.replace(/\/w640\//g, "/").replace(/\/w640(?=\/|$)/g, "");
+      // 关键防御 2：彻底清除 P2 全屏广告水印（将 bzcdn 广告节点替换为 baozicdn 无水印超清原图）
+      const domainSetting = this.loadSetting("cdn_domains");
+      if (!domainSetting || domainSetting.includes("baozicdn.com") || domainSetting.includes("baozimh.com")) {
+        const targetDomain = domainSetting || "as-rsa1-usla.baozicdn.com";
+        cleanUrl = cleanUrl.replace(/[^/]+(?=\/[a-z]?comic\/)/, targetDomain);
+      }
       return {
         url: cleanUrl,
         headers: {
@@ -442,9 +446,8 @@ class Baozi extends ComicSource {
 
     // 缩略图加载标头
     onThumbnailLoad: (url) => {
-      const cleanUrl = url
-        ? url.replace(/\/w640\//g, "/").replace(/\/w640(?=\/|$)/g, "")
-        : url;
+      let cleanUrl = url || "";
+      cleanUrl = cleanUrl.replace(/\/w640\//g, "/").replace(/\/w640(?=\/|$)/g, "");
       return {
         url: cleanUrl,
         headers: {
@@ -614,7 +617,10 @@ class Baozi extends ComicSource {
             );
             if (match) {
               const domainSetting = this.loadSetting("cdn_domains");
-              const domain = domainSetting || match[2];
+              let domain = domainSetting || "as-rsa1-usla.baozicdn.com";
+              if (!domainSetting && (domain.includes("bzcdn.net") || match[2].includes("bzcdn.net"))) {
+                domain = "as-rsa1-usla.baozicdn.com";
+              }
               imgUrl = `${match[1]}${domain}${match[4]}`;
               // 彻底剥离 /w640 缩略图路径，统一使用 100% 可用的原图
               imgUrl = imgUrl.replace(/\/w640\//g, "/").replace(/\/w640(?=\/|$)/g, "");
