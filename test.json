@@ -426,8 +426,8 @@
   {
     "name": "极速漫画",
     "key": "jisumh",
-    "version": "1.0.1",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jisumh-v1.0.1/jisumh.js",
+    "version": "1.0.2",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jisumh-v1.0.2/jisumh.js",
     "fileName": "jisumh.js",
     "description": "极速漫画 (jisumh)"
   },

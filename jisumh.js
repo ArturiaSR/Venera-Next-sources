@@ -27,9 +27,9 @@ function unpack(p, a, c, k) {
 class Jisumh extends ComicSource {
   name = "极速漫画";
   key = "jisumh";
-  version = "1.0.1";
+  version = "1.0.2";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jisumh-v1.0.1/jisumh.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@jisumh-v1.0.2/jisumh.js";
 
   settings = {
     domains: {
@@ -92,7 +92,7 @@ class Jisumh extends ComicSource {
       if (res.status !== 200) throw `加载首页失败: ${res.status}`;
       let doc = new HtmlDocument(res.body);
       try {
-        const result = {};
+        const result = [];
         const titleNodes = doc.querySelectorAll(".manga-list-title.index");
         const listNodes = doc.querySelectorAll("ul.manga-list-1, ul.manga-list-2");
 
@@ -105,7 +105,11 @@ class Jisumh extends ComicSource {
             if (item) comics.push(item);
           }
           if (comics.length > 0) {
-            result[partTitle] = fitToRow(comics, 16);
+            result.push({
+              title: partTitle,
+              comics: fitToRow(comics, 16),
+              viewMore: null
+            });
           }
         }
         return result;
@@ -190,14 +194,25 @@ class Jisumh extends ComicSource {
       let data = JSON.parse(res.body);
       let items = data.UpdateComicItems || [];
 
-      let comics = items.map(item => new Comic({
-        id: item.UrlKey,
-        title: item.Title,
-        subTitle: item.Author || item.ShowLastPartName || "",
-        cover: this.fixUrl(item.ShowPicUrlB || item.ShowConver || ""),
-        tags: [],
-        description: item.Content || ""
-      }));
+      let comics = items.map(item => {
+        let authorStr = "";
+        if (Array.isArray(item.Author)) {
+          authorStr = item.Author.join(", ");
+        } else if (typeof item.Author === "string") {
+          authorStr = item.Author;
+        } else if (item.ShowLastPartName) {
+          authorStr = item.ShowLastPartName;
+        }
+
+        return new Comic({
+          id: item.UrlKey,
+          title: item.Title,
+          subTitle: authorStr,
+          cover: this.fixUrl(item.ShowPicUrlB || item.ShowConver || ""),
+          tags: Array.isArray(item.Author) ? item.Author : [],
+          description: item.Content || ""
+        });
+      });
 
       return {
         comics,
@@ -237,7 +252,7 @@ class Jisumh extends ComicSource {
             comics.push(new Comic({
               id,
               title,
-              subTitle: author,
+              subTitle: typeof author === "string" ? author : "",
               cover: this.fixUrl(cover),
               tags: [],
               description: desc
