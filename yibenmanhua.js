@@ -48,32 +48,34 @@ class Yibenmanhua extends ComicSource {
     title: "一本漫画",
     type: "multiPartPage",
     load: async (page) => {
-      if (page > 1) return [];
+      let p = parseInt(page) || 1;
+      if (p > 1) return [];
       let url = `${this.baseUrl}/api/cartoon/todayRecommend`;
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `加载发现页失败: HTTP ${res.status}`;
       let json = JSON.parse(res.body);
-      if (json.status !== "200" || !json.data) return [];
+      if (json.status != 200 && json.status != "200") return [];
+      if (!json.data) return [];
 
+      let parts = [];
       let list = json.data.today_recommend?.list;
       if (list && Array.isArray(list) && list.length > 0) {
         let comics = list.map(item => new Comic({
-          id: item.mapping_id.toString(),
-          title: item.title,
+          id: (item.mapping_id || item.id || "").toString(),
+          title: item.title || "",
+          subtitle: (item.cartoon_tags && item.cartoon_tags.join(" / ")) || "",
           subTitle: (item.cartoon_tags && item.cartoon_tags.join(" / ")) || "",
           cover: this.fixUrl(item.img_pc_url || item.img_url),
-          tags: item.cartoon_tags || [],
-          description: item.cartoon_info || ""
+          tags: Array.isArray(item.cartoon_tags) ? item.cartoon_tags : [],
+          description: (item.cartoon_info || "").toString()
         }));
-        return [
-          {
-            title: "每日精选",
-            comics: this.fitToRow(comics, 12),
-            viewMore: null
-          }
-        ];
+        parts.push({
+          title: "每日精选",
+          comics: this.fitToRow(comics, 12),
+          viewMore: null
+        });
       }
-      return [];
+      return parts;
     }
   }];
 
@@ -93,21 +95,23 @@ class Yibenmanhua extends ComicSource {
   categoryComics = {
     load: async (category, param, options, page) => {
       let catId = param || "0";
-      let url = `${this.baseUrl}/api/cartoon/list?page=${page}&pagesize=20&cartoon_category_id=${catId}&is_pay=0&is_end=0&order=0`;
+      let p = parseInt(page) || 1;
+      let url = `${this.baseUrl}/api/cartoon/list?page=${p}&pagesize=20&cartoon_category_id=${catId}&is_pay=0&is_end=0&order=0`;
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `加载分类失败: HTTP ${res.status}`;
       let json = JSON.parse(res.body);
-      if (json.status !== "200" || !json.data) {
+      if (json.status != 200 && json.status != "200" || !json.data) {
         return { comics: [], maxPage: 1 };
       }
       let d = json.data;
       let comics = (d.list || []).map(item => new Comic({
-        id: item.id.toString(),
-        title: item.title,
+        id: (item.id || item.mapping_id || "").toString(),
+        title: item.title || "",
+        subtitle: item.author || "",
         subTitle: item.author || "",
         cover: this.fixUrl(item.pc_v_cover || item.v_cover),
-        tags: [],
-        description: item.information || ""
+        tags: Array.isArray(item.cartoon_tags) ? item.cartoon_tags : [],
+        description: (item.information || "").toString()
       }));
       let maxPage = parseInt(d.max_page || d.maxPage);
       return {
@@ -119,23 +123,25 @@ class Yibenmanhua extends ComicSource {
 
   search = {
     load: async (keyword, options, page) => {
-      let kw = encodeURIComponent((keyword || "").trim());
-      if (!kw) return { comics: [], maxPage: 1 };
-      let url = `${this.baseUrl}/api/cartoon/searchResult?keyword=${kw}&page=${page}&pagesize=20`;
+      let rawKw = (keyword || "").trim();
+      if (!rawKw) return { comics: [], maxPage: 1 };
+      let p = parseInt(page) || 1;
+      let url = `${this.baseUrl}/api/cartoon/searchResult?keyword=${encodeURIComponent(rawKw)}&page=${p}&pagesize=20`;
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `搜索请求失败: HTTP ${res.status}`;
       let json = JSON.parse(res.body);
-      if (json.status !== "200" || !json.data || !json.data.list) {
+      if (json.status != 200 && json.status != "200" || !json.data || !Array.isArray(json.data.list)) {
         return { comics: [], maxPage: 1 };
       }
       let d = json.data;
       let comics = d.list.map(c => new Comic({
-        id: c.id.toString(),
-        title: c.title,
+        id: (c.id || c.mapping_id || "").toString(),
+        title: c.title || "",
+        subtitle: c.author || "",
         subTitle: c.author || "",
-        cover: this.fixUrl(c.pc_v_cover || c.v_cover),
-        tags: c.cartoon_tags || [],
-        description: c.information || ""
+        cover: this.fixUrl(c.pc_v_cover || c.v_cover || c.img_pc_url || c.img_url),
+        tags: Array.isArray(c.cartoon_tags) ? c.cartoon_tags : [],
+        description: (c.information || c.cartoon_info || "").toString()
       }));
       let maxPage = parseInt(d.max_page || d.maxPage);
       return {
@@ -151,7 +157,9 @@ class Yibenmanhua extends ComicSource {
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `详情加载失败: HTTP ${res.status}`;
       let json = JSON.parse(res.body);
-      if (json.status !== "200" || !json.data) throw `获取漫画详情失败: ${json.msg || "未知错误"}`;
+      if (json.status != 200 && json.status != "200" || !json.data) {
+        throw `获取漫画详情失败: ${json.msg || "未知错误"}`;
+      }
       let d = json.data;
 
       let title = d.title || id;
@@ -205,7 +213,9 @@ class Yibenmanhua extends ComicSource {
       let res = await Network.get(url, this.headers);
       if (res.status !== 200) throw `章节请求失败: HTTP ${res.status}`;
       let json = JSON.parse(res.body);
-      if (json.status !== "200" || !json.data) throw `获取章节内容失败: ${json.msg || "未知错误"}`;
+      if (json.status != 200 && json.status != "200" || !json.data) {
+        throw `获取章节内容失败: ${json.msg || "未知错误"}`;
+      }
 
       let d = json.data;
       let images = [];
