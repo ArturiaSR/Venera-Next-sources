@@ -224,14 +224,6 @@
     "description": "好多漫画 (haoduoman) - 新版"
   },
   {
-    "name": "包子漫画",
-    "key": "baozi2",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/baozi2.js",
-    "fileName": "baozi2.js",
-    "description": "包子漫画 (baozi) - 新版"
-  },
-  {
     "name": "漫画柜繁体",
     "key": "manhuaguitw",
     "version": "1.0.0",

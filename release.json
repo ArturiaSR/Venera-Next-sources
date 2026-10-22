@@ -134,5 +134,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@baozi-v1.1.10/baozi.js",
     "fileName": "baozi.js",
     "description": "包子漫画 (baozi)"
+  },
+  {
+    "name": "布卡漫画",
+    "key": "bukamh",
+    "version": "1.0.4",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.4/bukamh.js",
+    "fileName": "bukamh.js",
+    "description": "布卡漫画 (bukamh)"
   }
 ]
