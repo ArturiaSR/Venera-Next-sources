@@ -2,9 +2,12 @@
 class Acgncc extends ComicSource {
   name = "ACGN漫画";
   key = "acgncc";
-  version = "1.0.3";
+  version = "1.0.4";
   minAppVersion = "1.6.0";
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.3/acgncc.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.4/acgncc.js";
+
+  static deadLogos = new Set();
+  static validLogos = new Set();
 
   settings = {
     domains: {
@@ -70,21 +73,27 @@ class Acgncc extends ComicSource {
   }
 
   parseListItem(item) {
-    let link = item.querySelector(".list_r h2 a, h2 a, dt a, a[href*='manhua-']");
-    if (!link) return null;
-    let href = link.attributes.href || "";
+    let comicLink = null;
+    let chapLink = null;
+    for (let a of item.querySelectorAll("a")) {
+      let h = a.attributes.href || "";
+      if (h.includes("manhua-")) comicLink = a;
+      else if (h.includes("view-")) chapLink = a;
+    }
+    if (!comicLink) return null;
+
+    let href = comicLink.attributes.href || "";
     let id = this.extractId(href);
-    let title = link.text?.trim() || "";
+    let title = comicLink.text?.trim() || comicLink.attributes.title || "";
     if (!id || !title) return null;
 
-    let img = item.querySelector(".list_l img, img");
+    let img = item.querySelector("img");
     let cover = img?.attributes?.src || img?.attributes?.["data-src"] || "";
-    let lastEl = item.querySelector(".list_l .last a, .last a, a[href*='view-']");
     let last = item.querySelector(".list_l .last, .last")?.text?.trim() || "";
     let desc = item.querySelector(".list_r p, p")?.text?.trim() || "";
 
-    // 针对新漫画logo图404问题，若存在近期章节，采用首话第1页高清图兜底
-    let chapId = (lastEl?.attributes?.href || "").match(/view-(\d+)\.htm/i)?.[1];
+    // 针对新漫画logo图404问题，优先采用首话第1页高清图兜底
+    let chapId = (chapLink?.attributes?.href || "").match(/view-(\d+)\.htm/i)?.[1];
     if (chapId && parseInt(chapId) > 400000) {
       let dir = Math.ceil(parseInt(chapId) / 100) * 100;
       cover = `https://img.acgn.cc/img/${dir}/${chapId}/1.jpg`;
@@ -116,14 +125,19 @@ class Acgncc extends ComicSource {
           let p0Items = panels[0].querySelectorAll("li");
           let latestList = [];
           for (let li of p0Items) {
-            // 修复精确选择器：必须从包含 /manhua- 的链接提取漫画ID与标题
-            let comicLink = li.querySelector("div a, a[href*='manhua-']");
+            let comicLink = null;
+            let chapLink = null;
+            for (let a of li.querySelectorAll("a")) {
+              let h = a.attributes.href || "";
+              if (h.includes("manhua-")) comicLink = a;
+              else if (h.includes("view-")) chapLink = a;
+            }
             if (!comicLink) continue;
+
             let id = this.extractId(comicLink.attributes.href || "");
             let title = comicLink.attributes.title || comicLink.text?.trim() || "";
             if (!id || !title) continue;
 
-            let chapLink = li.querySelector("a[href*='view-']");
             let img = li.querySelector("img");
             let span = li.querySelector("span");
             let subTitle = span?.text?.trim() || "";
@@ -159,13 +173,19 @@ class Acgncc extends ComicSource {
           for (let i = 1; i < panels.length; i++) {
             let lis = panels[i].querySelectorAll("li");
             for (let li of lis) {
-              let comicLink = li.querySelector("div a, a[href*='manhua-']");
+              let comicLink = null;
+              let chapLink = null;
+              for (let a of li.querySelectorAll("a")) {
+                let h = a.attributes.href || "";
+                if (h.includes("manhua-")) comicLink = a;
+                else if (h.includes("view-")) chapLink = a;
+              }
               if (!comicLink) continue;
+
               let id = this.extractId(comicLink.attributes.href || "");
               let title = comicLink.attributes.title || comicLink.text?.trim() || "";
               if (!id || !title) continue;
 
-              let chapLink = li.querySelector("a[href*='view-']");
               let img = li.querySelector("img");
               let span = li.querySelector("span");
               let subTitle = span?.text?.trim() || "";
@@ -468,8 +488,19 @@ class Acgncc extends ComicSource {
               let qList = [kw.toLowerCase(), kwTrad.toLowerCase()];
 
               for (let el of allLis) {
-                let comicLink = el.tagName === "a" ? el : el.querySelector("div a, a[href*='manhua-']");
+                let comicLink = null;
+                let chapLink = null;
+                if (el.tagName === "a") {
+                  comicLink = el;
+                } else {
+                  for (let a of el.querySelectorAll("a")) {
+                    let h = a.attributes.href || "";
+                    if (h.includes("manhua-")) comicLink = a;
+                    else if (h.includes("view-")) chapLink = a;
+                  }
+                }
                 if (!comicLink) continue;
+
                 let id = this.extractId(comicLink.attributes.href || "");
                 let title = comicLink.attributes.title || comicLink.text?.trim() || "";
                 if (!id || !title || visitedIds.has(id)) continue;
@@ -480,7 +511,6 @@ class Acgncc extends ComicSource {
                   visitedIds.add(id);
                   let img = el.querySelector("img");
                   let cover = img?.attributes?.src || "";
-                  let chapLink = el.querySelector("a[href*='view-']");
                   let chapId = (chapLink?.attributes?.href || "").match(/view-(\d+)\.htm/i)?.[1];
                   if (chapId && parseInt(chapId) > 400000) {
                     let dir = Math.ceil(parseInt(chapId) / 100) * 100;
@@ -569,18 +599,19 @@ class Acgncc extends ComicSource {
         let description = descEl?.text?.trim() || "";
 
         let chapters = new Map();
-        let chapterLinks = doc.querySelectorAll("#content a[href*='view-'], .tabs-panel a[href*='view-'], ul a[href*='view-']");
         let chapList = [];
         let visited = new Set();
-        for (let link of chapterLinks) {
+        for (let link of doc.querySelectorAll("a")) {
           let href = link.attributes.href || "";
-          let m = href.match(/view-(\d+)\.htm/i);
-          if (m) {
-            let epId = m[1];
-            let ctitle = link.text?.trim() || `第 ${epId} 话`;
-            if (!visited.has(epId)) {
-              visited.add(epId);
-              chapList.push({ epId, ctitle });
+          if (href.includes("view-")) {
+            let m = href.match(/view-(\d+)\.htm/i);
+            if (m) {
+              let epId = m[1];
+              let ctitle = link.text?.trim() || `第 ${epId} 话`;
+              if (!visited.has(epId)) {
+                visited.add(epId);
+                chapList.push({ epId, ctitle });
+              }
             }
           }
         }
@@ -658,12 +689,33 @@ class Acgncc extends ComicSource {
       }
     }),
 
-    onThumbnailLoad: (url) => ({
-      url,
-      headers: {
+    onThumbnailLoad: async (url) => {
+      let headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Referer": this.baseUrl + "/"
+      };
+      if (url.includes("/logo/")) {
+        if (Acgncc.deadLogos.has(url)) {
+          return { url: "https://comic.acgn.cc/media/images/no_img.gif", headers };
+        }
+        if (Acgncc.validLogos.has(url)) {
+          return { url, headers };
+        }
+        try {
+          let res = await Network.get(url, headers);
+          if (res.status === 200) {
+            Acgncc.validLogos.add(url);
+            return { url, headers };
+          } else {
+            Acgncc.deadLogos.add(url);
+            return { url: "https://comic.acgn.cc/media/images/no_img.gif", headers };
+          }
+        } catch (e) {
+          Acgncc.deadLogos.add(url);
+          return { url: "https://comic.acgn.cc/media/images/no_img.gif", headers };
+        }
       }
-    })
+      return { url, headers };
+    }
   };
 }
