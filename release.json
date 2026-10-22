@@ -126,5 +126,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@mkzhan-v1.0.2/mkzhan.js",
     "fileName": "mkzhan.js",
     "description": "漫客栈 (mkzhan)"
+  },
+  {
+    "name": "包子漫画",
+    "key": "baozi",
+    "version": "1.1.10",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@baozi-v1.1.10/baozi.js",
+    "fileName": "baozi.js",
+    "description": "包子漫画 (baozi)"
   }
 ]
