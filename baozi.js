@@ -32,12 +32,12 @@ class Baozi extends ComicSource {
   // 唯一标识符
   key = "baozi";
 
-  version = "1.1.7";
+  version = "1.1.8";
 
   minAppVersion = "1.4.0";
 
   // 更新链接 (必须使用携带源名称前缀的具体 Git Tag)
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@baozi-v1.1.7/baozi.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@baozi-v1.1.8/baozi.js";
 
   settings = {
     language: {
@@ -75,19 +75,15 @@ class Baozi extends ComicSource {
       default: "",
     },
     image_quality: {
-      title: "图片质量",
+      title: "图片画质",
       type: "select",
       options: [
         {
-          value: "/w640",
-          text: "640p (流畅推荐)",
-        },
-        {
           value: "",
-          text: "原图",
+          text: "原图 (推荐稳定，防404)",
         },
       ],
-      default: "/w640",
+      default: "",
     },
   };
 
@@ -430,8 +426,12 @@ class Baozi extends ComicSource {
   comic = {
     // 关键：正文图片加载标头，缺少会导致阅读器 403
     onImageLoad: (url, comicId, epId) => {
+      // 关键防御：彻底清理 /w640 路径片段（部分图片在 CDN 上无 640p 缩略图会导致 404）
+      const cleanUrl = url
+        ? url.replace(/\/w640\//g, "/").replace(/\/w640(?=\/|$)/g, "")
+        : url;
       return {
-        url: url,
+        url: cleanUrl,
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -442,8 +442,11 @@ class Baozi extends ComicSource {
 
     // 缩略图加载标头
     onThumbnailLoad: (url) => {
+      const cleanUrl = url
+        ? url.replace(/\/w640\//g, "/").replace(/\/w640(?=\/|$)/g, "")
+        : url;
       return {
-        url: url,
+        url: cleanUrl,
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -612,8 +615,9 @@ class Baozi extends ComicSource {
             if (match) {
               const domainSetting = this.loadSetting("cdn_domains");
               const domain = domainSetting || match[2];
-              const quality = this.loadSetting("image_quality") || "";
-              imgUrl = `${match[1]}${domain}${quality}${match[4]}`;
+              imgUrl = `${match[1]}${domain}${match[4]}`;
+              // 彻底剥离 /w640 缩略图路径，统一使用 100% 可用的原图
+              imgUrl = imgUrl.replace(/\/w640\//g, "/").replace(/\/w640(?=\/|$)/g, "");
             }
             if (!images.includes(imgUrl)) {
               images.push(imgUrl);
