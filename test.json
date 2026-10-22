@@ -184,14 +184,6 @@
     "description": "X漫画"
   },
   {
-    "name": "Colamanga",
-    "key": "colamanga",
-    "version": "1.0.0",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@main/colamanga.js",
-    "fileName": "colamanga.js",
-    "description": "Colamanga"
-  },
-  {
     "name": "天天看漫画",
     "key": "ttkmh",
     "version": "1.0.0",
