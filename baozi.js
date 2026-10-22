@@ -32,12 +32,12 @@ class Baozi extends ComicSource {
   // 唯一标识符
   key = "baozi";
 
-  version = "1.1.9";
+  version = "1.1.10";
 
   minAppVersion = "1.4.0";
 
   // 更新链接 (必须使用携带源名称前缀的具体 Git Tag)
-  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@baozi-v1.1.9/baozi.js";
+  url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@baozi-v1.1.10/baozi.js";
 
   settings = {
     language: {
@@ -514,12 +514,12 @@ class Baozi extends ComicSource {
           const href = a.attributes["href"] || "";
           const chTitle =
             a.querySelector("span")?.text?.trim() || a.text?.trim() || `第 ${i + 1} 话`;
-          const m = href.match(/section_slot=(\d+)&(?:amp;)?chapter_slot=(\d+)/);
+          const m = href.match(/comic_id=([^&"']+)&(?:amp;)?section_slot=(\d+)&(?:amp;)?chapter_slot=(\d+)/);
           let epId;
           if (m) {
-            epId = `${m[1]}_${m[2]}`;
+            epId = `${m[1]}/${m[2]}_${m[3]}`;
           } else {
-            const chMatch = href.match(/chapter\/[^/]+\/([^/.]+)/);
+            const chMatch = href.match(/chapter\/([^"']+?)(?:\.html)?$/);
             epId = chMatch ? chMatch[1] : `0_${i}`;
           }
           chapters.set(epId, chTitle);
@@ -535,12 +535,12 @@ class Baozi extends ComicSource {
             const href = a.attributes["href"] || "";
             const chTitle =
               a.querySelector("span")?.text?.trim() || a.text?.trim() || `第 ${i + 1} 话`;
-            const m = href.match(/section_slot=(\d+)&(?:amp;)?chapter_slot=(\d+)/);
+            const m = href.match(/comic_id=([^&"']+)&(?:amp;)?section_slot=(\d+)&(?:amp;)?chapter_slot=(\d+)/);
             let epId;
             if (m) {
-              epId = `${m[1]}_${m[2]}`;
+              epId = `${m[1]}/${m[2]}_${m[3]}`;
             } else {
-              const chMatch = href.match(/chapter\/[^/]+\/([^/.]+)/);
+              const chMatch = href.match(/chapter\/([^"']+?)(?:\.html)?$/);
               epId = chMatch ? chMatch[1] : `0_${i}`;
             }
             chapters.set(epId, chTitle);
@@ -590,10 +590,28 @@ class Baozi extends ComicSource {
 
     loadEp: async (comicId, epId) => {
       const images = [];
-      const chapterSlot = epId.includes("_") ? epId : `0_${epId}`;
-      const currentPageUrl = `${this.baseUrl}/comic/chapter/${comicId}/${chapterSlot}.html`;
+      let chapterPath;
+      if (epId.includes("/")) {
+        chapterPath = epId.endsWith(".html") ? epId : `${epId}.html`;
+      } else {
+        const slot = epId.includes("_") ? epId : `0_${epId}`;
+        chapterPath = `${comicId}/${slot}.html`;
+      }
+      let currentPageUrl = `${this.baseUrl}/comic/chapter/${chapterPath}`;
 
-      const res = await this.fetchWithCheck(currentPageUrl);
+      let res = await this.fetchWithCheck(currentPageUrl);
+      if (res.status === 404 && !epId.includes("/")) {
+        // 容错：若404且未带真实comic_id，尝试去掉可能的短哈希后缀再次请求
+        const cleanId = comicId.replace(/_[a-z0-9]+$/, "");
+        if (cleanId !== comicId) {
+          const slot = epId.includes("_") ? epId : `0_${epId}`;
+          const fallbackUrl = `${this.baseUrl}/comic/chapter/${cleanId}/${slot}.html`;
+          const fallbackRes = await this.fetchWithCheck(fallbackUrl);
+          if (fallbackRes.status === 200) {
+            res = fallbackRes;
+          }
+        }
+      }
       if (res.status !== 200) {
         throw `Invalid status code: ${res.status}`;
       }
