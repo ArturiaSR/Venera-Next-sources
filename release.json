@@ -142,5 +142,13 @@
     "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@bukamh-v1.0.4/bukamh.js",
     "fileName": "bukamh.js",
     "description": "布卡漫画 (bukamh)"
+  },
+  {
+    "name": "ACGN漫画",
+    "key": "acgncc",
+    "version": "1.0.5",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@acgncc-v1.0.5/acgncc.js",
+    "fileName": "acgncc.js",
+    "description": "ACGN漫画 (acgncc)"
   }
 ]
