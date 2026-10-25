@@ -4,11 +4,11 @@ class CopyManga extends ComicSource {
 
     key = "copy_manga"
 
-    version = "1.4.5"
+    version = "1.4.6"
 
     minAppVersion = "1.6.0"
 
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.5/copy_manga.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.6/copy_manga.js"
 
     get inMainland() {
         return this.copyRegion === "1";
@@ -719,10 +719,13 @@ class CopyManga extends ComicSource {
                     if (maxChapter > 100) {
                         let offset = 100;
                         while (offset < maxChapter) {
+                            // 翻页请求间隔 350ms 节流，避免高频请求连续突发击穿 WAF
+                            await new Promise((resolve) => setTimeout(resolve, 350));
                             let offsetAttempt = 0;
                             while (offsetAttempt < maxAttempts) {
+                                const currentApi = candidateHosts[offsetAttempt % candidateHosts.length];
                                 res = await Network.get(
-                                    `${this.apiUrl}/api/v3/comic/${id}/group/${path}/chapters?limit=100&offset=${offset}&in_mainland=${this.inMainland}`,
+                                    `${currentApi}/api/v3/comic/${id}/group/${path}/chapters?limit=100&offset=${offset}&in_mainland=${this.inMainland}&request_id=`,
                                     this.headers
                                 );
                                 if (res.status === 210) {
@@ -730,11 +733,16 @@ class CopyManga extends ComicSource {
                                     if (offsetAttempt >= maxAttempts) {
                                         throw `210: 章节获取频繁，请稍后重试`;
                                     }
-                                    await new Promise((resolve) => setTimeout(resolve, 1200));
+                                    await new Promise((resolve) => setTimeout(resolve, 1800));
                                     continue;
                                 }
                                 if (res.status !== 200) {
-                                    throw `Invalid status code: ${res.status}`;
+                                    offsetAttempt++;
+                                    if (offsetAttempt >= maxAttempts) {
+                                        throw `Invalid status code: ${res.status}`;
+                                    }
+                                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                                    continue;
                                 }
                                 break;
                             }
@@ -751,14 +759,15 @@ class CopyManga extends ComicSource {
                 };
                 let keys = Object.keys(groups);
                 let result = {};
-                let futures = [];
-                for (let group of keys) {
+                // 串行获取分组章节，分组间留出 300ms 缓冲，防止多分组并发造成 QPS 骤增触发风控
+                for (let i = 0; i < keys.length; i++) {
+                    let group = keys[i];
                     let path = groups[group]["path_word"];
-                    futures.push((async () => {
-                        result[group] = await fetchSingle(id, path);
-                    })());
+                    if (i > 0) {
+                        await new Promise((resolve) => setTimeout(resolve, 300));
+                    }
+                    result[group] = await fetchSingle(id, path);
                 }
-                await Promise.all(futures);
                 if (this.isAppVersionAfter("1.3.0")) {
                     // 支持多分组
                     let sortedResult = new Map();
@@ -813,10 +822,14 @@ class CopyManga extends ComicSource {
                 if (comicRes.status === 210) {
                     attempt++;
                     if (attempt >= maxAttempts) {
-                        throw `210: 访问过于频繁或触发风控，请稍后重试`;
+                        // 遭遇连续 210 时，自动重置设备特征指纹，解除设备级风控绑定
+                        this.deleteData("_deviceinfo");
+                        this.deleteData("_device");
+                        this.deleteData("_pseudoid");
+                        throw `210: 访问过于频繁或触发风控，已自动重置设备特征，请稍后重试`;
                     }
-                    // 退避等待 1.2 秒后切换线路重试
-                    await new Promise((resolve) => setTimeout(resolve, 1200));
+                    // 退避等待 1.8 秒后切换线路重试
+                    await new Promise((resolve) => setTimeout(resolve, 1800));
                     continue;
                 }
 
