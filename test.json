@@ -2,8 +2,8 @@
   {
     "name": "拷贝漫画",
     "key": "copy_manga",
-    "version": "1.4.6",
-    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.6/copy_manga.js",
+    "version": "1.4.7",
+    "url": "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.7/copy_manga.js",
     "fileName": "copy_manga.js",
     "description": "拷贝漫画 (copy_manga)"
   },

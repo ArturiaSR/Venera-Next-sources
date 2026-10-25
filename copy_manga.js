@@ -4,11 +4,11 @@ class CopyManga extends ComicSource {
 
     key = "copy_manga"
 
-    version = "1.4.6"
+    version = "1.4.7"
 
     minAppVersion = "1.6.0"
 
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.6/copy_manga.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.7/copy_manga.js"
 
     get inMainland() {
         return this.copyRegion === "1";
@@ -34,8 +34,8 @@ class CopyManga extends ComicSource {
         return "";
     }
 
-    get headers() {
-        let token = this.loadData("token");
+    getHeaders(forceNoToken = false) {
+        let token = forceNoToken ? "" : this.loadData("token");
         let secret = "M2FmMDg1OTAzMTEwMzJlZmUwNjYwNTUwYTA1NjNhNTM="
 
         let now = new Date(Date.now());
@@ -57,13 +57,13 @@ class CopyManga extends ComicSource {
         )
 
         return {
-            "User-Agent": `COPY/3.0.6`,
+            "User-Agent": `COPY/3.0.9`,
             "source": "copyApp",
             "deviceinfo": this.deviceinfo,
             "dt": `${year}.${month}.${day}`,
             "platform": "3",
-            "referer": `com.copymanga.app-3.0.6`,
-            "version": "3.0.6",
+            "referer": `com.copymanga.app-3.0.9`,
+            "version": "3.0.9",
             "device": this.device,
             "pseudoid": this.pseudoid,
             "Accept": "application/json",
@@ -73,6 +73,10 @@ class CopyManga extends ComicSource {
             "x-auth-timestamp": ts,
             "x-auth-signature": sig,
         }
+    }
+
+    get headers() {
+        return this.getHeaders(false);
     }
 
     // static defaultCopyVersion = "3.0.6"
@@ -655,7 +659,7 @@ class CopyManga extends ComicSource {
             return {
                 url: url,
                 headers: {
-                    "User-Agent": "COPY/3.0.6",
+                    "User-Agent": "COPY/3.0.9",
                     "referer": "https://www.copymanga.tv/",
                     "Accept": "image/webp,image/apng,image/*,*/*;q=0.8"
                 }
@@ -665,7 +669,7 @@ class CopyManga extends ComicSource {
             return {
                 url: url,
                 headers: {
-                    "User-Agent": "COPY/3.0.6",
+                    "User-Agent": "COPY/3.0.9",
                     "referer": "https://www.copymanga.tv/",
                     "Accept": "image/webp,image/apng,image/*,*/*;q=0.8"
                 }
@@ -675,27 +679,38 @@ class CopyManga extends ComicSource {
             let getChapters = async (id, groups) => {
                 let fetchSingle = async (id, path) => {
                     let attempt = 0;
-                    const maxAttempts = 3;
+                    const maxAttempts = 4;
                     let res = null;
                     const candidateHosts = Array.from(new Set([
                         this.apiUrl,
                         'https://api.copy202601.com',
                         'https://api.copy4000.com',
-                        'https://api.copy5000.com'
+                        'https://api.copy5000.com',
+                        'https://api.copy2000.online'
                     ]));
+                    let triedAnonymous = false;
                     while (attempt < maxAttempts) {
                         let reqId = await this.getReqID();
                         const currentApi = candidateHosts[attempt % candidateHosts.length];
+                        const reqHeaders = (attempt > 0 && !triedAnonymous && this.loadData("token"))
+                            ? this.getHeaders(true)
+                            : this.headers;
                         res = await Network.get(
                             `${currentApi}/api/v3/comic/${id}/group/${path}/chapters?limit=100&offset=0&in_mainland=${this.inMainland}&request_id=${reqId}`,
-                            this.headers
+                            reqHeaders
                         );
                         if (res.status === 210) {
+                            if (attempt === 0 && this.loadData("token") && !triedAnonymous) {
+                                triedAnonymous = true;
+                            }
                             attempt++;
                             if (attempt >= maxAttempts) {
-                                throw `210: 章节获取频繁，请稍后重试`;
+                                this.deleteData("_deviceinfo");
+                                this.deleteData("_device");
+                                this.deleteData("_pseudoid");
+                                throw `210: 当前网络/代理IP触发拷贝风控(限制1小时)，请在代理软件中切换节点或直连重试`;
                             }
-                            await new Promise((resolve) => setTimeout(resolve, 1200));
+                            await new Promise((resolve) => setTimeout(resolve, 1500));
                             continue;
                         }
                         if (res.status !== 200) {
@@ -722,16 +737,26 @@ class CopyManga extends ComicSource {
                             // 翻页请求间隔 350ms 节流，避免高频请求连续突发击穿 WAF
                             await new Promise((resolve) => setTimeout(resolve, 350));
                             let offsetAttempt = 0;
+                            let offsetTriedAnonymous = false;
                             while (offsetAttempt < maxAttempts) {
                                 const currentApi = candidateHosts[offsetAttempt % candidateHosts.length];
+                                const reqHeaders = (offsetAttempt > 0 && !offsetTriedAnonymous && this.loadData("token"))
+                                    ? this.getHeaders(true)
+                                    : this.headers;
                                 res = await Network.get(
                                     `${currentApi}/api/v3/comic/${id}/group/${path}/chapters?limit=100&offset=${offset}&in_mainland=${this.inMainland}&request_id=`,
-                                    this.headers
+                                    reqHeaders
                                 );
                                 if (res.status === 210) {
+                                    if (offsetAttempt === 0 && this.loadData("token") && !offsetTriedAnonymous) {
+                                        offsetTriedAnonymous = true;
+                                    }
                                     offsetAttempt++;
                                     if (offsetAttempt >= maxAttempts) {
-                                        throw `210: 章节获取频繁，请稍后重试`;
+                                        this.deleteData("_deviceinfo");
+                                        this.deleteData("_device");
+                                        this.deleteData("_pseudoid");
+                                        throw `210: 当前网络/代理IP触发拷贝风控(限制1小时)，请在代理软件中切换节点或直连重试`;
                                     }
                                     await new Promise((resolve) => setTimeout(resolve, 1800));
                                     continue;
@@ -803,30 +828,38 @@ class CopyManga extends ComicSource {
 
             // 获取详情，加入 210 退避与多线路故障转移机制
             let attempt = 0;
-            const maxAttempts = 3;
+            const maxAttempts = 4;
             let comicRes = null;
             const candidateHosts = Array.from(new Set([
                 this.apiUrl,
                 'https://api.copy202601.com',
                 'https://api.copy4000.com',
-                'https://api.copy5000.com'
+                'https://api.copy5000.com',
+                'https://api.copy2000.online'
             ]));
+            let triedAnonymous = false;
             while (attempt < maxAttempts) {
                 let reqId = await this.getReqID();
                 const currentApi = candidateHosts[attempt % candidateHosts.length];
+                const reqHeaders = (attempt > 0 && !triedAnonymous && this.loadData("token"))
+                    ? this.getHeaders(true)
+                    : this.headers;
                 comicRes = await Network.get(
                     `${currentApi}/api/v3/comic2/${id}?in_mainland=${this.inMainland}&request_id=${reqId}&platform=3`,
-                    this.headers
+                    reqHeaders
                 );
 
                 if (comicRes.status === 210) {
+                    if (attempt === 0 && this.loadData("token") && !triedAnonymous) {
+                        triedAnonymous = true;
+                    }
                     attempt++;
                     if (attempt >= maxAttempts) {
                         // 遭遇连续 210 时，自动重置设备特征指纹，解除设备级风控绑定
                         this.deleteData("_deviceinfo");
                         this.deleteData("_device");
                         this.deleteData("_pseudoid");
-                        throw `210: 访问过于频繁或触发风控，已自动重置设备特征，请稍后重试`;
+                        throw `210: 当前网络/代理IP触发拷贝风控(限制1小时)，请在代理软件中切换节点或直连重试`;
                     }
                     // 退避等待 1.8 秒后切换线路重试
                     await new Promise((resolve) => setTimeout(resolve, 1800));
@@ -900,20 +933,26 @@ class CopyManga extends ComicSource {
                 this.apiUrl,
                 'https://api.copy202601.com',
                 'https://api.copy4000.com',
-                'https://api.copy5000.com'
+                'https://api.copy5000.com',
+                'https://api.copy2000.online'
             ]));
+            let triedAnonymous = false;
             while (attempt < maxAttempts) {
                 try {
                     let reqId = await this.getReqID();
                     const currentApi = candidateHosts[attempt % candidateHosts.length];
+                    const reqHeaders = (attempt > 0 && !triedAnonymous && this.loadData("token"))
+                        ? this.getHeaders(true)
+                        : this.headers;
                     res = await Network.get(
                         `${currentApi}/api/v3/comic/${comicId}/chapter2/${epId}?in_mainland=${this.inMainland}&request_id=${reqId}`,
-                        {
-                            ...this.headers
-                        }
+                        reqHeaders
                     );
 
                     if (res.status === 210) {
+                        if (attempt === 0 && this.loadData("token") && !triedAnonymous) {
+                            triedAnonymous = true;
+                        }
                         // 210 indicates too frequent access, extract wait time
                         let waitTime = 40000; // Default wait time 40s
                         try {
