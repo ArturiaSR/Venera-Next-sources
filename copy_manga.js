@@ -4,11 +4,11 @@ class CopyManga extends ComicSource {
 
     key = "copy_manga"
 
-    version = "1.4.4"
+    version = "1.4.5"
 
     minAppVersion = "1.6.0"
 
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.4/copy_manga.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.5/copy_manga.js"
 
     get inMainland() {
         return this.copyRegion === "1";
@@ -654,13 +654,21 @@ class CopyManga extends ComicSource {
         onImageLoad: (url, comicId, epId) => {
             return {
                 url: url,
-                headers: this.headers
+                headers: {
+                    "User-Agent": "COPY/3.0.6",
+                    "referer": "https://www.copymanga.tv/",
+                    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8"
+                }
             };
         },
         onThumbnailLoad: (url) => {
             return {
                 url: url,
-                headers: this.headers
+                headers: {
+                    "User-Agent": "COPY/3.0.6",
+                    "referer": "https://www.copymanga.tv/",
+                    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8"
+                }
             };
         },
         loadInfo: async (id) => {
@@ -932,12 +940,24 @@ class CopyManga extends ComicSource {
                         url.replace(/([./])c\d+x\.[a-zA-Z]+$/, `$1c${this.imageQuality}x.webp`)
                     )
 
-                    let images = new Array(hdImagesUrls.length).fill(""); // Initialize an array with the same length as imagesUrls
+                    let images = new Array(hdImagesUrls.length).fill("");
 
-                    // Arrange images according to orders
-                    for (let i = 0; i < hdImagesUrls.length; i++) {
-                        images[orders[i]] = hdImagesUrls[i];
+                    // Arrange images according to orders with safe bounds checking
+                    if (Array.isArray(orders) && orders.length === hdImagesUrls.length) {
+                        for (let i = 0; i < hdImagesUrls.length; i++) {
+                            const targetIdx = orders[i];
+                            if (typeof targetIdx === 'number' && targetIdx >= 0 && targetIdx < hdImagesUrls.length) {
+                                images[targetIdx] = hdImagesUrls[i];
+                            } else {
+                                images[i] = hdImagesUrls[i];
+                            }
+                        }
+                    } else {
+                        images = hdImagesUrls;
                     }
+
+                    // 过滤可能存在的空项，确保页码与有效图片数量严格对应
+                    images = images.filter((img) => img && typeof img === 'string' && img.trim().length > 0);
 
                     return {
                         images: images,
