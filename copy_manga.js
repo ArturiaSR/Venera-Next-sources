@@ -4,11 +4,11 @@ class CopyManga extends ComicSource {
 
     key = "copy_manga"
 
-    version = "1.4.3"
+    version = "1.4.4"
 
     minAppVersion = "1.6.0"
 
-    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.3/copy_manga.js"
+    url = "https://cdn.jsdelivr.net/gh/ArturiaSR/Venera-Next-sources@copy_manga-v1.4.4/copy_manga.js"
 
     get inMainland() {
         return this.copyRegion === "1";
@@ -83,7 +83,7 @@ class CopyManga extends ComicSource {
 
     static defaultImageQuality = "1500"
 
-    static defaultApiUrl = 'api.copy2000.online'
+    static defaultApiUrl = 'api.copy202601.com'
 
     static searchApi = "/api/kb/web/searchb/comics"
 
@@ -161,7 +161,8 @@ class CopyManga extends ComicSource {
 
     get apiUrl() {
         let domain = this.loadSetting('base_url');
-        if (!domain || typeof domain !== 'string' || !domain.trim()) {
+        // 自动将历史失效或有风险的旧域名迁移至新主站
+        if (!domain || typeof domain !== 'string' || !domain.trim() || domain === 'api.copy2000.online' || domain === 'mapi.copy2000.site') {
             domain = CopyManga.defaultApiUrl;
         }
         return `https://${domain}`;
@@ -668,10 +669,17 @@ class CopyManga extends ComicSource {
                     let attempt = 0;
                     const maxAttempts = 3;
                     let res = null;
+                    const candidateHosts = Array.from(new Set([
+                        this.apiUrl,
+                        'https://api.copy202601.com',
+                        'https://api.copy4000.com',
+                        'https://api.copy5000.com'
+                    ]));
                     while (attempt < maxAttempts) {
                         let reqId = await this.getReqID();
+                        const currentApi = candidateHosts[attempt % candidateHosts.length];
                         res = await Network.get(
-                            `${this.apiUrl}/api/v3/comic/${id}/group/${path}/chapters?limit=100&offset=0&in_mainland=${this.inMainland}&request_id=${reqId}`,
+                            `${currentApi}/api/v3/comic/${id}/group/${path}/chapters?limit=100&offset=0&in_mainland=${this.inMainland}&request_id=${reqId}`,
                             this.headers
                         );
                         if (res.status === 210) {
@@ -683,7 +691,12 @@ class CopyManga extends ComicSource {
                             continue;
                         }
                         if (res.status !== 200) {
-                            throw `Invalid status code: ${res.status}`;
+                            attempt++;
+                            if (attempt >= maxAttempts) {
+                                throw `Invalid status code: ${res.status}`;
+                            }
+                            await new Promise((resolve) => setTimeout(resolve, 1000));
+                            continue;
                         }
                         break;
                     }
@@ -771,14 +784,21 @@ class CopyManga extends ComicSource {
                 }
             };
 
-            // 获取详情，加入 210 退避重试机制
+            // 获取详情，加入 210 退避与多线路故障转移机制
             let attempt = 0;
             const maxAttempts = 3;
             let comicRes = null;
+            const candidateHosts = Array.from(new Set([
+                this.apiUrl,
+                'https://api.copy202601.com',
+                'https://api.copy4000.com',
+                'https://api.copy5000.com'
+            ]));
             while (attempt < maxAttempts) {
                 let reqId = await this.getReqID();
+                const currentApi = candidateHosts[attempt % candidateHosts.length];
                 comicRes = await Network.get(
-                    `${this.apiUrl}/api/v3/comic2/${id}?in_mainland=${this.inMainland}&request_id=${reqId}&platform=3`,
+                    `${currentApi}/api/v3/comic2/${id}?in_mainland=${this.inMainland}&request_id=${reqId}&platform=3`,
                     this.headers
                 );
 
@@ -787,13 +807,18 @@ class CopyManga extends ComicSource {
                     if (attempt >= maxAttempts) {
                         throw `210: 访问过于频繁或触发风控，请稍后重试`;
                     }
-                    // 退避等待 1.2 秒后重试
+                    // 退避等待 1.2 秒后切换线路重试
                     await new Promise((resolve) => setTimeout(resolve, 1200));
                     continue;
                 }
 
                 if (comicRes.status !== 200) {
-                    throw `Invalid status code: ${comicRes.status}`;
+                    attempt++;
+                    if (attempt >= maxAttempts) {
+                        throw `Invalid status code: ${comicRes.status}`;
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                    continue;
                 }
                 break;
             }
@@ -850,11 +875,18 @@ class CopyManga extends ComicSource {
             let res;
             let data;
 
+            const candidateHosts = Array.from(new Set([
+                this.apiUrl,
+                'https://api.copy202601.com',
+                'https://api.copy4000.com',
+                'https://api.copy5000.com'
+            ]));
             while (attempt < maxAttempts) {
                 try {
                     let reqId = await this.getReqID();
+                    const currentApi = candidateHosts[attempt % candidateHosts.length];
                     res = await Network.get(
-                        `${this.apiUrl}/api/v3/comic/${comicId}/chapter2/${epId}?in_mainland=${this.inMainland}&request_id=${reqId}`,
+                        `${currentApi}/api/v3/comic/${comicId}/chapter2/${epId}?in_mainland=${this.inMainland}&request_id=${reqId}`,
                         {
                             ...this.headers
                         }
@@ -873,13 +905,14 @@ class CopyManga extends ComicSource {
                                 if (match && match[1]) {
                                     waitTime = parseInt(match[1]) * 1000;
                                 }
+                            } else {
+                                // 遭遇风控或需要换源时快速故障转移
+                                waitTime = 1200;
                             }
                         } catch (e) {
-                            console.log(
-                                "Unable to parse wait time, using default wait time 40s"
-                            );
+                            waitTime = 1200;
                         }
-                        console.log(`Chapter${epId} access too frequent, waiting ${waitTime / 1000}s`);
+                        console.log(`Chapter${epId} access restricted/frequent, waiting ${waitTime / 1000}s before next line retry`);
                         await new Promise((resolve) => setTimeout(resolve, waitTime));
                         throw "Retry";
                     }
@@ -1134,9 +1167,9 @@ class CopyManga extends ComicSource {
             title: "API地址",
             type: "select",
             options: [
-                { value: "api.copy2000.online", text: "api.copy2000.online (主站)" },
-                { value: "mapi.copy2000.site", text: "mapi.copy2000.site (备用1)" },
-                { value: "api.copy202601.com", text: "api.copy202601.com (备用2)" }
+                { value: "api.copy202601.com", text: "api.copy202601.com (主站推荐)" },
+                { value: "api.copy4000.com", text: "api.copy4000.com (高速备用)" },
+                { value: "api.copy5000.com", text: "api.copy5000.com (稳定备用)" }
             ],
             default: CopyManga.defaultApiUrl,
         },
@@ -1197,20 +1230,27 @@ class CopyManga extends ComicSource {
     }
 
     async refreshAppApi() {
-        try {
-            const url = "https://api.copy-manga.com/api/v3/system/network2?platform=3";
-            const res = await Network.get(url, this.headers);
-            if (res.status === 200) {
-                let data = JSON.parse(res.body);
-                if (data?.results?.api?.[0]?.[0]) {
-                    const newApi = data.results.api[0][0];
-                    CopyManga.defaultApiUrl = newApi;
-                    if (this.settings?.base_url) {
-                        this.settings.base_url.default = newApi;
+        const checkUrls = [
+            "https://api.copy202601.com/api/v3/system/network2?platform=3",
+            "https://api.copy4000.com/api/v3/system/network2?platform=3",
+            "https://api.copy-manga.com/api/v3/system/network2?platform=3"
+        ];
+        for (const url of checkUrls) {
+            try {
+                const res = await Network.get(url, this.headers);
+                if (res.status === 200) {
+                    let data = JSON.parse(res.body);
+                    if (data?.results?.api?.[0]?.[0]) {
+                        const newApi = data.results.api[0][0];
+                        CopyManga.defaultApiUrl = newApi;
+                        if (this.settings?.base_url) {
+                            this.settings.base_url.default = newApi;
+                        }
+                        break;
                     }
                 }
+            } catch (e) {
             }
-        } catch (e) {
         }
     }
 }
